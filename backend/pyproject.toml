@@ -1,0 +1,20 @@
+[project]
+name = "jobops-backend"
+version = "0.1.0"
+description = "JobOps FastAPI backend — agent logic, scoring, tailoring, scheduled jobs."
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.45",
+    "fastapi>=0.115",
+    "pydantic-settings>=2.6",
+    "uvicorn[standard]>=0.32",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28",
+    "pytest>=8.3",
+]
+
+[tool.uv]
+package = false
