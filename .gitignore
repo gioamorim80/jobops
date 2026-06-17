@@ -1,0 +1,29 @@
+# secrets — never commit
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# user data / uploads — never commit PII (resumes, profiles)
+uploads/
+data/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# node / next
+node_modules/
+.next/
+dist/
+out/
+
+# os / editor
+.DS_Store
+.vscode/
+.idea/
+*.log

@@ -1,0 +1,14 @@
+# Ruff = linter + formatter in one (fast). Applies to the FastAPI backend.
+#   Lint:   ruff check backend
+#   Format: ruff format backend
+line-length = 100
+target-version = "py311"
+
+[lint]
+# E/F = pyflakes+pycodestyle, I = import sorting, B = bug-prone patterns,
+# UP = modern-Python upgrades, S = security lint (flake8-bandit).
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["E501"]  # line length is handled by the formatter
+
+[lint.per-file-ignores]
+"**/tests/**" = ["S101"]  # allow `assert` in tests
