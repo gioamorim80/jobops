@@ -1,8 +1,13 @@
 # STATE — where the build is
 
-## Current milestone: M0 — Bootstrap the monorepo ✅ (code complete; deploy pending)
+## Current milestone: M1 — Auth + onboarding → profile (in progress)
 
-### Done this session
+## M0 — Bootstrap the monorepo ✅ COMPLETE & VERIFIED LIVE
+Verified in production: Vercel frontend → Railway backend → live Anthropic call.
+The deployed landing page hits `/agent/ping` and renders a real model response.
+Acceptance criterion met. Next.js later patched to 15.5.19 (security fix).
+
+### M0 scope (done)
 - Monorepo scaffolded: `/frontend` (Next.js App Router + TS), `/backend` (FastAPI,
   managed with `uv`), `/supabase` (empty `migrations/` + README; schema lands in M1).
 - Backend endpoints:
@@ -20,12 +25,10 @@
 - Verified locally: `uv run pytest` (3 passed), `ruff` clean, frontend
   `format:check`/`lint`/`build` all green, uvicorn boots and serves both endpoints.
 
-### Not done (intentionally — outside M0)
-- No deploy yet. Acceptance ("deployed frontend hits `/agent/ping` live") needs:
-  1. Backend → Railway, 2. Frontend → Vercel, with env vars set in each dashboard
-  (see root README / session notes for the exact steps).
-- A real end-to-end model response requires a valid `ANTHROPIC_API_KEY` in the
-  deployed backend's env.
+### Deploy (done)
+- Backend live on Railway; frontend live on Vercel; both green. `ANTHROPIC_API_KEY`
+  set in Railway; `NEXT_PUBLIC_BACKEND_URL` set in Vercel; CORS allows the Vercel
+  origin. End-to-end `/agent/ping` confirmed working in production.
 
 ### Next: M1 — Auth + onboarding chat → profile
 - Supabase magic-link auth in the frontend.

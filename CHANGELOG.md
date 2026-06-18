@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-06-18 — M0 complete: verified live in production
+- **What:** Deployed and verified the M0 vertical slice end to end — Vercel
+  frontend → Railway backend → live Anthropic call. The deployed landing page
+  hits `/agent/ping` and renders a real model response. M0 acceptance met.
+- **Status:** M0 ✅ closed. Beginning **M1** (auth + onboarding → profile).
+
 ## 2026-06-17 — M0: Bootstrap the monorepo
 - **What:** Scaffolded the monorepo. `/backend` (FastAPI via `uv`) with
   `GET /health` and `GET /agent/ping` (real Anthropic call, model + key from env).
