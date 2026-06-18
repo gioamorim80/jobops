@@ -7,6 +7,9 @@ dependencies = [
     "anthropic>=0.45",
     "fastapi>=0.115",
     "pydantic-settings>=2.6",
+    "pypdf>=5.1",
+    "python-docx>=1.1",
+    "supabase>=2.10",
     "uvicorn[standard]>=0.32",
 ]
 

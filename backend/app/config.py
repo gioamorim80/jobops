@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-4-6"
 
+    # --- Supabase (backend uses the SERVICE ROLE key only — never the anon key) ---
+    supabase_url: str | None = None
+    supabase_service_role_key: str | None = None
+    resume_bucket: str = "resumes"
+
     # --- CORS: comma-separated list of allowed frontend origins ---
     cors_origins: str = "http://localhost:3000"
 

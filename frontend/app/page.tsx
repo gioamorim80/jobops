@@ -1,90 +1,61 @@
-"use client";
+import Link from "next/link";
 
-import { useState } from "react";
-
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
+import { AgentStatus } from "@/components/AgentStatus";
 
 export default function Home() {
-  const [text, setText] = useState("");
-  const [model, setModel] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function pingAgent() {
-    setLoading(true);
-    setError("");
-    setText("");
-    setModel("");
-    try {
-      const res = await fetch(`${BACKEND_URL}/agent/ping`);
-      if (!res.ok) {
-        throw new Error(`Backend responded with ${res.status}`);
-      }
-      const data: { model: string; text: string } = await res.json();
-      setModel(data.model);
-      setText(data.text);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
-    <main
-      style={{
-        maxWidth: 640,
-        margin: "0 auto",
-        padding: "4rem 1.5rem",
-      }}
-    >
-      <h1 style={{ fontSize: "2.25rem", marginBottom: "0.5rem" }}>JobOps</h1>
-      <p style={{ color: "#9fb0d0", marginTop: 0 }}>
-        Multi-tenant agentic job-search assistant — M0 skeleton. The button
-        below calls the FastAPI backend, which makes a live Anthropic call.
-      </p>
-
-      <button
-        onClick={pingAgent}
-        disabled={loading}
-        style={{
-          marginTop: "1.5rem",
-          padding: "0.7rem 1.25rem",
-          fontSize: "1rem",
-          borderRadius: 8,
-          border: "none",
-          cursor: loading ? "default" : "pointer",
-          background: loading ? "#34406b" : "#4f7cff",
-          color: "white",
-        }}
-      >
-        {loading ? "Pinging agent…" : "Ping the agent"}
-      </button>
-
-      {model && (
-        <p style={{ marginTop: "1.5rem" }}>
-          <strong>Model:</strong> <code>{model}</code>
+    <div className="container">
+      <header className="hero">
+        <span className="badge" style={{ marginBottom: "1.25rem" }}>
+          <span className="dot dot-ok" /> Multi-tenant · agentic
+        </span>
+        <h1>Land the right role, faster.</h1>
+        <p className="lead">
+          JobOps reads your resume, scores real job postings against your actual
+          experience, and tailors honest application material — never inventing
+          anything you didn&apos;t do.
         </p>
-      )}
+        <div className="hero-actions">
+          <Link href="/login" className="btn">
+            Get started
+          </Link>
+          <a
+            href="https://github.com/gioamorim80/jobops"
+            className="btn btn-ghost"
+            target="_blank"
+            rel="noreferrer"
+          >
+            View the repo
+          </a>
+        </div>
+        <div style={{ marginTop: "1.5rem" }}>
+          <AgentStatus />
+        </div>
+      </header>
 
-      {text && (
-        <blockquote
-          style={{
-            borderLeft: "3px solid #4f7cff",
-            margin: "0.5rem 0",
-            padding: "0.5rem 1rem",
-            background: "#121a33",
-            borderRadius: 6,
-          }}
-        >
-          {text}
-        </blockquote>
-      )}
-
-      {error && (
-        <p style={{ marginTop: "1.5rem", color: "#ff7676" }}>Error: {error}</p>
-      )}
-    </main>
+      <section className="feature-grid">
+        <div className="card">
+          <div className="card-title">Paste a link, get a fit score</div>
+          <p className="muted" style={{ margin: 0 }}>
+            An instant 0–100 fit score with the requirements you clear and the
+            honest gaps — grounded in your real profile.
+          </p>
+        </div>
+        <div className="card">
+          <div className="card-title">Tailored, truthful bullets</div>
+          <p className="muted" style={{ margin: 0 }}>
+            Reorders and rephrases what&apos;s true on your resume. It never
+            fabricates titles, metrics, or skills.
+          </p>
+        </div>
+        <div className="card">
+          <div className="card-title">Recurring scored matches</div>
+          <p className="muted" style={{ margin: 0 }}>
+            Opt into daily or weekly email alerts of new roles above your score
+            threshold. Pause anytime.
+          </p>
+        </div>
+      </section>
+    </div>
   );
 }

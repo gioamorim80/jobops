@@ -1,42 +1,56 @@
 # STATE — where the build is
 
-## Current milestone: M1 — Auth + onboarding → profile (in progress)
+## Current milestone: M1 — Auth + onboarding → profile
+Status: **code complete & locally verified.** Live two-account RLS isolation
+test must be run by the operator against the real Supabase project + deploys
+(steps in the M1 session report / below).
 
 ## M0 — Bootstrap the monorepo ✅ COMPLETE & VERIFIED LIVE
-Verified in production: Vercel frontend → Railway backend → live Anthropic call.
-The deployed landing page hits `/agent/ping` and renders a real model response.
-Acceptance criterion met. Next.js later patched to 15.5.19 (security fix).
+Vercel frontend → Railway backend → live Anthropic call. `/agent/ping` confirmed
+in production. Next.js later patched to 15.5.19 (security fix).
 
-### M0 scope (done)
-- Monorepo scaffolded: `/frontend` (Next.js App Router + TS), `/backend` (FastAPI,
-  managed with `uv`), `/supabase` (empty `migrations/` + README; schema lands in M1).
-- Backend endpoints:
-  - `GET /health` → `{"status":"ok"}`.
-  - `GET /agent/ping` → real Anthropic call using `ANTHROPIC_API_KEY` +
-    `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`), returns the model's text.
-    Missing key → graceful 503. Keys read from env only, never hardcoded.
-- Frontend: single landing page that calls the backend `/agent/ping` and renders
-  the live model response (reads `NEXT_PUBLIC_BACKEND_URL`).
-- Dev tooling: `pre-commit install` done; `pre-commit run --all-files` passes
-  (hygiene, `detect-private-key`, `gitleaks`, `ruff` + `ruff-format`). Prettier +
-  `lint`/`format`/`format:check` scripts added to the frontend.
-- CI (`.github/workflows/ci.yml`) extended: `quality` (pre-commit), `backend`
-  (uv sync + pytest), `frontend` (npm install + prettier check + lint + build).
-- Verified locally: `uv run pytest` (3 passed), `ruff` clean, frontend
-  `format:check`/`lint`/`build` all green, uvicorn boots and serves both endpoints.
+## M1 — what was built
+- **Supabase migration** `supabase/migrations/0001_m1_profiles_preferences.sql`:
+  `profiles` + `preferences` tables, RLS `user_id = auth.uid()` on both, an
+  `updated_at` trigger, and a PRIVATE `resumes` storage bucket with per-user
+  storage RLS (folder = uid). Idempotent; run in the Supabase SQL editor.
+- **Auth (frontend):** Supabase magic-link via `@supabase/ssr`. `/login`,
+  `/auth/callback` (PKCE code + token_hash), `/auth/signout`. `middleware.ts`
+  refreshes the session and blocks unauthenticated access to `/dashboard`,
+  `/onboarding`, `/settings`; the `(app)` layout re-checks server-side. Frontend
+  uses the anon key only.
+- **Onboarding (lightweight):** upload PDF/DOCX to the private bucket (client,
+  RLS-scoped) → backend `POST /onboarding/parse` downloads via service role,
+  extracts text, runs the onboarding agent (extraction only, never invents),
+  stores `raw_resume_text` under RLS, returns a draft (no PII to the browser) →
+  user reviews/edits + answers 3 gap questions (target roles, location/remote,
+  alert frequency) → `POST /onboarding/complete` saves `profiles.parsed` +
+  `preferences` (human-approval gate). user_id always derives from the verified
+  JWT, never request input.
+- **Settings:** alert frequency (off/daily/weekly) + score threshold (default 60),
+  read/written via RLS.
+- **Design system:** dark theme tokens in `globals.css` (consistent with the
+  landing page), Inter font, reusable card/button/field/badge/alert/spinner
+  classes, responsive, with loading/empty/error states throughout.
+- **Backend:** new modules `auth.py`, `supabase_client.py` (service role only),
+  `resume.py`, `onboarding.py`, `agents/onboarding.py` (versioned prompt). Deps
+  added via uv: `supabase`, `pypdf`, `python-docx`.
 
-### Deploy (done)
-- Backend live on Railway; frontend live on Vercel; both green. `ANTHROPIC_API_KEY`
-  set in Railway; `NEXT_PUBLIC_BACKEND_URL` set in Vercel; CORS allows the Vercel
-  origin. End-to-end `/agent/ping` confirmed working in production.
+### Verified locally
+- `uv run pytest` (8 passed), ruff clean, frontend `format:check`/`lint`/`build`
+  green, backend boots with `/onboarding/parse` + `/onboarding/complete`
+  registered and gated (401 without a valid bearer token).
 
-### Next: M1 — Auth + onboarding chat → profile
-- Supabase magic-link auth in the frontend.
-- `profiles`, `preferences` tables + RLS (`user_id = auth.uid()`) — see
-  `docs/DATA_MODEL.md`. First SQL migrations land in `/supabase/migrations/`.
-- Onboarding agent (`docs/agents/ONBOARDING.md`): resume upload → parse → gap
-  questions in chat → confirm → write profile. Settings screen (alert freq +
-  score threshold). Verify tenant isolation with two accounts before calling done.
+### Operator to-do to close M1 acceptance (needs live Supabase + deploys)
+1. Run the migration SQL in the Supabase SQL editor.
+2. Set env vars (see session report): Supabase URL + anon key (frontend/Vercel),
+   Supabase URL + service_role key (backend/Railway), backend URL (frontend),
+   CORS_ORIGINS (backend). Add the Vercel domain to Supabase Auth → URL
+   Configuration (Site URL + redirect allowlist).
+3. Run the two-account isolation test (steps in the report): two accounts each
+   onboard; each sees ONLY their own profile + resume, verified via RLS.
+
+### Next: M2 — On-demand paste-a-link → score + tailor (the MVP wedge). NOT started.
 
 ### Blockers
-- None. To finish M0's acceptance criterion, deploy both apps and set env vars.
+- None. M1 acceptance is a live verification step for the operator.

@@ -13,6 +13,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.onboarding import router as onboarding_router
 
 app = FastAPI(title="JobOps API", version="0.1.0")
 
@@ -23,6 +24,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(onboarding_router)
 
 
 def get_anthropic_client() -> anthropic.Anthropic:
