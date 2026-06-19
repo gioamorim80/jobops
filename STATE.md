@@ -71,6 +71,14 @@ in production. Next.js later patched to 15.5.19 (security fix).
 - Moved "View the repo" from the hero into an understated site footer.
 - Design system / palette / logic unchanged.
 
+## M1 hero cleanup (2026-06-18, still M1, frontend only)
+- Single sign-in entry point (top-right nav only); removed the secondary
+  "Already have an account?" link.
+- Removed both hero status pills; hero = headline + subtext + Get started.
+- No always-on backend status on the landing. Backend failures now surface a
+  calm, on-brand message via `backendPost` (network + 5xx → friendly; 4xx keep
+  the real reason) in the onboarding/settings flows. Deleted unused AgentStatus.
+
 ### Next: M2 — On-demand paste-a-link → score + tailor (the MVP wedge). NOT started.
 
 ### Blockers

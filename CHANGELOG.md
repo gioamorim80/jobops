@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-06-18 — M1 hero cleanup (frontend only)
+- Removed the duplicate sign-in entry point: kept only the top-right nav "Sign
+  in" link; deleted "Already have an account? Sign in" under Get started.
+- Removed both hero status pills ("Considered job search" and the agent-status
+  indicator). Hero is now just headline + subtext + Get started.
+- Replaced the always-on agent-status ping with graceful on-action failure:
+  the landing shows no backend status during normal use; when a backend-needing
+  action (onboarding parse/save, profile update) can't reach the service, the
+  existing error UI now shows a calm, lightly humorous on-brand message instead
+  of a raw fetch/5xx error (`backendPost` maps network errors + 5xx to it;
+  actionable 4xx still show the real reason). Deleted the unused AgentStatus
+  component. Design system, palette, and logic unchanged.
+
 ## 2026-06-18 — M1 landing fixes (frontend only)
 - **Feature cards aligned:** the three landing cards no longer stagger. Root
   cause was the global `.card + .card` top-margin applying to grid siblings;

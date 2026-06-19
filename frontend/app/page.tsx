@@ -1,7 +1,5 @@
 import Link from "next/link";
 
-import { AgentStatus } from "@/components/AgentStatus";
-
 export default function Home() {
   return (
     <>
@@ -18,9 +16,6 @@ export default function Home() {
 
       <div className="container">
         <section className="hero">
-          <span className="badge" style={{ marginBottom: "1.5rem" }}>
-            <span className="dot dot-ok" /> Considered job search
-          </span>
           <h1>A calmer way to find your next role.</h1>
           <p className="lead">
             JobOps reads your résumé, scores real postings against your actual
@@ -31,12 +26,6 @@ export default function Home() {
             <Link href="/login" className="btn">
               Get started
             </Link>
-          </div>
-          <p className="faint" style={{ marginTop: "1rem" }}>
-            Already have an account? <Link href="/login">Sign in</Link>
-          </p>
-          <div style={{ marginTop: "1.5rem" }}>
-            <AgentStatus />
           </div>
         </section>
 
