@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-06-18 — M1 landing fixes (frontend only)
+- **Feature cards aligned:** the three landing cards no longer stagger. Root
+  cause was the global `.card + .card` top-margin applying to grid siblings;
+  zeroed it inside `.feature-grid` and set `align-items: stretch` for equal
+  heights and a shared top edge. Stacks cleanly on mobile (grid `gap` spacing).
+- **Sign-in path for returning users:** added a "Sign in" link in a new public
+  top nav and an "Already have an account? Sign in" link beside Get started.
+  Both route to the existing magic-link `/login` — no auth logic changed.
+- **Repo link moved out of the hero:** removed "View the repo" from the primary
+  CTA area; it now lives as an understated link in a new site footer.
+- Design system, palette, and logic unchanged. pre-commit + build/lint/format
+  green.
+
 ## 2026-06-18 — M1 polish: "Chic Trancoso" restyle + inline profile editing
 - **Design (frontend only):** rebuilt the design system around a calm, boutique
   aesthetic — warm-ivory + soft-lavender base, deep forest-green accent used

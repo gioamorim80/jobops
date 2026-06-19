@@ -63,6 +63,14 @@ in production. Next.js later patched to 15.5.19 (security fix).
 - **No** schema change, **no** new env var, and **no** change to auth / RLS /
   storage policies / the onboarding agent / existing API contracts / env handling.
 
+## M1 landing fixes (2026-06-18, still M1, frontend only)
+- Feature cards: equal-height, top-aligned row (zeroed the stacked `.card`
+  top-margin inside `.feature-grid` + `align-items: stretch`); stacks on mobile.
+- Added a returning-user sign-in path: "Sign in" in a public top nav + "Already
+  have an account? Sign in" beside Get started (both → existing `/login`).
+- Moved "View the repo" from the hero into an understated site footer.
+- Design system / palette / logic unchanged.
+
 ### Next: M2 — On-demand paste-a-link → score + tailor (the MVP wedge). NOT started.
 
 ### Blockers

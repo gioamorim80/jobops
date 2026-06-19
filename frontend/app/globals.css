@@ -473,6 +473,33 @@ input[type="range"] {
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 1.5rem;
   margin-top: 3.5rem;
+  align-items: stretch; /* equal-height cards across the row */
+}
+/* grid `gap` handles spacing — cancel the stacked-card top margin so the
+   feature cards share a top edge instead of staggering. */
+.feature-grid > .card {
+  margin-top: 0;
+}
+
+/* understated site footer (landing) */
+.site-footer {
+  border-top: 1px solid var(--border);
+  margin-top: 3.5rem;
+}
+.site-footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 1.5rem;
+  padding-bottom: 2.5rem;
+}
+.site-footer a {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+.site-footer a:hover {
+  color: var(--text);
 }
 
 /* upload dropzone */
