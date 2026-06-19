@@ -1,5 +1,36 @@
 # CHANGELOG
 
+## 2026-06-19 — M2: on-demand paste-a-link → score + tailor
+- **Migration `0002`:** `tailorings` + `usage_log` with per-user RLS, indexes,
+  and explicit GRANTs to `authenticated` + `service_role` (+ sequence usage) so
+  the new tables are reachable through PostgREST. `job_id` left as a nullable
+  column (FK → `jobs` deferred to M3).
+- **Backend:** `POST /ondemand/score` accepts a job URL or pasted text; a single
+  readability-style fetch (`readability-lxml` + `httpx`, one GET, no retries)
+  with a friendly "paste the text instead" fallback when a link is blocked/
+  empty/JS-only. Runs the Scorer then the Tailor (new versioned prompts in
+  `agents/scorer.py`, `agents/tailor.py`; default `ANTHROPIC_MODEL`; prompt
+  caching intentionally off) against the user's stored profile, saves the result
+  to `tailorings` (approved=false). `POST /ondemand/approve` saves the
+  user-edited bullets and sets approved=true (human-approval gate).
+- **Guardrails:** per-user daily LLM-call cap (`PER_USER_DAILY_LLM_CAP`, default
+  25) enforced before any model call, returning a friendly "limit reached"
+  status instead of crashing; every agent call logged to `usage_log` with token
+  counts + a cost estimate (no raw resume/profile/job text is ever logged).
+  user_id always derived from the verified JWT; every read/write scoped to the
+  caller's own rows.
+- **No fabrication:** Scorer evidence must trace to the profile; Tailor only
+  reorders/rephrases true content and emits "metric pending"/attribution flags,
+  which the UI surfaces prominently. Nothing is auto-applied.
+- **Frontend `/score`:** link/text input → loading → calm results (fit score +
+  decision badge, cleared/gaps, pitch, flags, editable bullets with "why", match
+  analysis, explicit Approve). Trancoso design system, responsive, on-brand
+  error/notice states; nav + dashboard entry points. No always-on backend status.
+- **Verified:** 13 backend tests pass, ruff + pre-commit clean, frontend
+  build/lint/format green. Live score→tailor + two-account isolation is the
+  operator's end-to-end step. No new env var.
+- **Next:** M3 — job-source adapters + dedupe + funnel stage 1.
+
 ## 2026-06-18 — M1 hero cleanup (frontend only)
 - Removed the duplicate sign-in entry point: kept only the top-right nav "Sign
   in" link; deleted "Already have an account? Sign in" under Get started.

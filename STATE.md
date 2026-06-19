@@ -1,9 +1,28 @@
 # STATE — where the build is
 
-## Current milestone: M1 — Auth + onboarding → profile
-Status: **code complete & locally verified.** Live two-account RLS isolation
-test must be run by the operator against the real Supabase project + deploys
-(steps in the M1 session report / below).
+## Current milestone: M2 — On-demand paste-a-link → score + tailor ✅ (code complete)
+Status: code complete & locally verified (tests/lint/build/pre-commit green).
+Operator to-do: run migration `0002`, then the end-to-end test below. No new env var.
+
+### M2 — what was built
+- **Migration** `supabase/migrations/0002_m2_tailorings_usage.sql`: `tailorings`
+  and `usage_log` tables, per-user RLS (`user_id = auth.uid()`), indexes, and
+  explicit GRANTs to `authenticated` + `service_role` (+ sequence usage) so the
+  new tables are exposed to the API roles. `job_id` is a plain nullable column
+  for now (FK → `jobs` arrives in M3).
+- **Backend** (`/ondemand/score`, `/ondemand/approve`): accepts a job URL or
+  pasted text; single readability fetch with a paste fallback (no host
+  hammering); runs Scorer then Tailor (versioned prompts in `agents/`, default
+  `ANTHROPIC_MODEL`, no prompt caching) against the user's stored profile; saves
+  to `tailorings` (approved=false); approve saves edited bullets + approved=true.
+  Per-user daily LLM cap enforced (friendly "limit reached", not a crash) and
+  every call logged to `usage_log`. user_id always from the verified JWT.
+- **Frontend** `/score`: link/text input → loading → calm results (fit + decision
+  badge, cleared/gaps, pitch, visible tailor flags, editable bullets with "why",
+  match analysis, explicit Approve). Trancoso design system; responsive;
+  on-brand error/notice states. Nav + dashboard entry points added.
+
+### M1 — Auth + onboarding → profile ✅ (code complete; live RLS test = operator)
 
 ## M0 — Bootstrap the monorepo ✅ COMPLETE & VERIFIED LIVE
 Vercel frontend → Railway backend → live Anthropic call. `/agent/ping` confirmed
@@ -79,7 +98,7 @@ in production. Next.js later patched to 15.5.19 (security fix).
   calm, on-brand message via `backendPost` (network + 5xx → friendly; 4xx keep
   the real reason) in the onboarding/settings flows. Deleted unused AgentStatus.
 
-### Next: M2 — On-demand paste-a-link → score + tailor (the MVP wedge). NOT started.
+### Next: M3 — Job-source adapters + dedupe + funnel stage 1. NOT started.
 
 ### Blockers
 - None. M1 acceptance is a live verification step for the operator.

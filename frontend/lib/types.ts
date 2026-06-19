@@ -36,3 +36,30 @@ export interface Draft {
   locations: string[];
   summary: string;
 }
+
+export type Decision = "APPLY" | "STRETCH" | "SKIP";
+
+export interface ScoreResult {
+  fit: number;
+  decision: Decision;
+  cleared: string[];
+  gaps: string[];
+  referral_angle: string;
+  pitch: string;
+}
+
+export interface TailoredBullet {
+  original: string;
+  tailored: string;
+  why: string;
+}
+
+export interface TailorResult {
+  tailored_bullets: TailoredBullet[];
+  analysis: string;
+  flags: string[];
+}
+
+export type ScoreResponse =
+  | { status: "ok"; id: string; score: ScoreResult; tailor: TailorResult }
+  | { status: "unreadable" | "limit_reached" | "no_profile"; message: string };

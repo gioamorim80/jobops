@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     supabase_service_role_key: str | None = None
     resume_bucket: str = "resumes"
 
+    # --- Guardrails ---
+    per_user_daily_llm_cap: int = 25
+
     # --- CORS: comma-separated list of allowed frontend origins ---
     cors_origins: str = "http://localhost:3000"
 

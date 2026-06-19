@@ -50,9 +50,14 @@ export default async function DashboardPage() {
             {profile.email || "No email on file"}
           </p>
         </div>
-        <Link href="/settings" className="btn btn-secondary btn-sm">
-          Edit profile
-        </Link>
+        <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
+          <Link href="/score" className="btn btn-sm">
+            Score a job
+          </Link>
+          <Link href="/settings" className="btn btn-secondary btn-sm">
+            Edit profile
+          </Link>
+        </div>
       </div>
 
       <div className="card">

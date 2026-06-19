@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.onboarding import router as onboarding_router
+from app.ondemand import router as ondemand_router
 
 app = FastAPI(title="JobOps API", version="0.1.0")
 
@@ -26,6 +27,7 @@ app.add_middleware(
 )
 
 app.include_router(onboarding_router)
+app.include_router(ondemand_router)
 
 
 def get_anthropic_client() -> anthropic.Anthropic:
