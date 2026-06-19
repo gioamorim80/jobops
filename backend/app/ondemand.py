@@ -11,7 +11,9 @@ daily LLM-call cap is enforced before any model call; every call is logged.
 Resume/profile/job text is sent only to the agent calls and never logged.
 """
 
+import hashlib
 import json
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from agents.scorer import SCORER_SYSTEM_PROMPT_V1
 from agents.tailor import TAILOR_SYSTEM_PROMPT_V1
@@ -32,6 +34,7 @@ router = APIRouter(prefix="/ondemand", tags=["ondemand"])
 class ScoreRequest(BaseModel):
     url: str | None = None
     text: str | None = None
+    force: bool = False  # bypass the exact-match cache and force a fresh run
 
 
 class TailoredBullet(BaseModel):
@@ -90,6 +93,89 @@ def _normalize_tailor(data: dict) -> dict:
     }
 
 
+# ------------------------- exact-match cache helpers --------------------------
+_TRACKING_KEYS = {"fbclid", "gclid", "mc_eid", "msclkid"}
+
+
+def _normalize_url(raw: str) -> str:
+    """Normalize for cache matching: lowercase scheme/host, drop fragment and
+    common tracking params, strip trailing slash. Best-effort; falls back to
+    the trimmed input."""
+    raw = raw.strip()
+    try:
+        parts = urlsplit(raw)
+        scheme = (parts.scheme or "https").lower()
+        netloc = parts.netloc.lower()
+        path = parts.path.rstrip("/") or "/"
+        query = [
+            (k, v)
+            for k, v in parse_qsl(parts.query)
+            if not k.lower().startswith("utm_") and k.lower() not in _TRACKING_KEYS
+        ]
+        return urlunsplit((scheme, netloc, path, urlencode(sorted(query)), ""))
+    except Exception:
+        return raw
+
+
+def _text_hash(text: str) -> str:
+    return hashlib.sha256(" ".join(text.split()).lower().encode("utf-8")).hexdigest()
+
+
+def _find_existing(client, user_id: str, source_url: str | None, pasted_text: str) -> dict | None:
+    """Find this user's prior tailoring for the same job. Matches on normalized
+    URL when a URL was given, else on a hash of the pasted text. Scoped to the
+    caller's own rows."""
+    if source_url:
+        rows = (
+            client.table("tailorings")
+            .select("id, score, tailored_bullets, analysis, approved")
+            .eq("user_id", user_id)
+            .eq("source_url", source_url)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        return rows[0] if rows else None
+    if pasted_text:
+        target = _text_hash(pasted_text)
+        rows = (
+            client.table("tailorings")
+            .select("id, job_text, score, tailored_bullets, analysis, approved")
+            .eq("user_id", user_id)
+            .is_("source_url", "null")
+            .order("created_at", desc=True)
+            .limit(50)
+            .execute()
+            .data
+            or []
+        )
+        for row in rows:
+            if row.get("job_text") and _text_hash(row["job_text"]) == target:
+                return row
+    return None
+
+
+def _cached_response(row: dict) -> dict:
+    """Build the score response from a saved row — no LLM call. Note: tailor
+    `flags` are not persisted, so a saved result returns an empty flags list."""
+    return {
+        "status": "ok",
+        "id": row["id"],
+        "cached": True,
+        "approved": bool(row.get("approved")),
+        "score": _normalize_score(row.get("score") or {}),
+        "tailor": _normalize_tailor(
+            {
+                "tailored_bullets": row.get("tailored_bullets") or [],
+                "analysis": row.get("analysis") or "",
+                "flags": [],
+            }
+        ),
+    }
+
+
 # --------------------------------- endpoints ----------------------------------
 @router.post("/score")
 def score_and_tailor(user_id: CurrentUserId, body: ScoreRequest) -> dict:
@@ -114,7 +200,21 @@ def score_and_tailor(user_id: CurrentUserId, body: ScoreRequest) -> dict:
     parsed = profile.get("parsed") or {}
     raw_resume = profile.get("raw_resume_text") or ""
 
-    # 2) Cost guardrail: per-user daily LLM-call cap (friendly, not a crash).
+    # 2) Resolve inputs. A URL (if given) is normalized and used as the cache key;
+    #    otherwise the pasted text is. Pasted text wins as the posting body.
+    pasted = (body.text or "").strip()
+    source_url = _normalize_url(body.url) if (body.url or "").strip() else None
+    if not pasted and not source_url:
+        raise HTTPException(status_code=422, detail="Paste a job link or the posting text.")
+
+    # 3) Exact-match cache: if this user already scored this exact job, return the
+    #    saved result with NO LLM call (and so no cap consumed, no usage logged),
+    #    unless they explicitly asked to re-score.
+    existing = _find_existing(client, user_id, source_url, pasted)
+    if existing and not body.force:
+        return _cached_response(existing)
+
+    # 4) Cost guardrail (only on a fresh run): per-user daily LLM-call cap.
     if count_calls_today(client, user_id) >= settings.per_user_daily_llm_cap:
         return {
             "status": "limit_reached",
@@ -124,11 +224,8 @@ def score_and_tailor(user_id: CurrentUserId, body: ScoreRequest) -> dict:
             ),
         }
 
-    # 3) Resolve the posting text: pasted text wins; otherwise fetch the URL once.
-    job_text = (body.text or "").strip()
-    source_url = (body.url or "").strip() or None
-    if not job_text and not source_url:
-        raise HTTPException(status_code=422, detail="Paste a job link or the posting text.")
+    # 5) Resolve the posting text: pasted text wins; otherwise fetch the URL once.
+    job_text = pasted
     if not job_text and source_url:
         try:
             job_text = fetch_job_text(source_url)
@@ -143,7 +240,7 @@ def score_and_tailor(user_id: CurrentUserId, body: ScoreRequest) -> dict:
             }
     job_text = job_text[:MAX_JOB_CHARS]
 
-    # 4) Score, then 5) tailor — both on the backend; log every call.
+    # 6) Score, then tailor — both on the backend; log every call.
     score_raw, score_usage = run_json_agent(
         SCORER_SYSTEM_PROMPT_V1,
         f"USER PROFILE (JSON):\n{json.dumps(parsed)}\n\nJOB POSTING:\n{job_text}",
@@ -166,26 +263,34 @@ def score_and_tailor(user_id: CurrentUserId, body: ScoreRequest) -> dict:
     log_call(client, user_id, "tailor", tailor_usage)
     tailor = _normalize_tailor(tailor_raw)
 
-    # 6) Persist for the user (unapproved until they explicitly approve).
-    inserted = (
-        client.table("tailorings")
-        .insert(
-            {
-                "user_id": user_id,
-                "source_url": source_url,
-                "job_text": job_text,
-                "score": score,
-                "tailored_bullets": tailor["tailored_bullets"],
-                "analysis": tailor["analysis"],
-                "approved": False,
-            }
-        )
-        .execute()
-        .data
-    )
-    tailoring_id = inserted[0]["id"] if inserted else None
+    # 7) Persist for the user (unapproved until they explicitly approve). Re-scoring
+    #    an existing job overwrites that one row rather than piling up duplicates.
+    record = {
+        "user_id": user_id,
+        "source_url": source_url,
+        "job_text": job_text,
+        "score": score,
+        "tailored_bullets": tailor["tailored_bullets"],
+        "analysis": tailor["analysis"],
+        "approved": False,
+    }
+    if existing:
+        client.table("tailorings").update(record).eq("id", existing["id"]).eq(
+            "user_id", user_id
+        ).execute()
+        tailoring_id = existing["id"]
+    else:
+        inserted = client.table("tailorings").insert(record).execute().data
+        tailoring_id = inserted[0]["id"] if inserted else None
 
-    return {"status": "ok", "id": tailoring_id, "score": score, "tailor": tailor}
+    return {
+        "status": "ok",
+        "id": tailoring_id,
+        "cached": False,
+        "approved": False,
+        "score": score,
+        "tailor": tailor,
+    }
 
 
 @router.post("/approve")

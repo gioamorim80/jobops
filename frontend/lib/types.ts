@@ -61,5 +61,24 @@ export interface TailorResult {
 }
 
 export type ScoreResponse =
-  | { status: "ok"; id: string; score: ScoreResult; tailor: TailorResult }
+  | {
+      status: "ok";
+      id: string;
+      cached: boolean;
+      approved: boolean;
+      score: ScoreResult;
+      tailor: TailorResult;
+    }
   | { status: "unreadable" | "limit_reached" | "no_profile"; message: string };
+
+// A saved tailoring row (read via RLS — only ever the user's own).
+export interface Tailoring {
+  id: string;
+  source_url: string | null;
+  job_text: string | null;
+  score: ScoreResult | null;
+  tailored_bullets: TailoredBullet[] | null;
+  analysis: string | null;
+  approved: boolean;
+  created_at: string;
+}

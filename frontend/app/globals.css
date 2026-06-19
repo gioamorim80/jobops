@@ -551,6 +551,80 @@ input[type="range"] {
   margin: 0.5rem 0 0;
 }
 
+/* inline text button (e.g. "re-score it") */
+.linklike {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.linklike:hover {
+  color: var(--accent-hover);
+}
+
+/* scored-jobs history list */
+.scored-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.scored-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+}
+.scored-item:hover {
+  border-color: var(--lilac);
+}
+.scored-item .snippet {
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scored-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-shrink: 0;
+}
+.scored-fit {
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 1.05rem;
+}
+
+/* landing differentiator */
+.ethos {
+  margin-top: 3rem;
+}
+.ethos-list {
+  list-style: none;
+  margin: 1.1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.ethos-list li {
+  position: relative;
+  padding-left: 1.2rem;
+}
+.ethos-list li::before {
+  content: "—";
+  position: absolute;
+  left: 0;
+  color: var(--lilac);
+}
+
 /* understated site footer (landing) */
 .site-footer {
   border-top: 1px solid var(--border);

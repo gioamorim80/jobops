@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## 2026-06-19 — M2 improvements: cache, history, loading UX, landing copy
+- **Exact-match cache (cost saver):** before any LLM call, `/ondemand/score`
+  checks whether the user already scored this exact job — matched on normalized
+  `source_url` (tracking params/fragment/trailing slash stripped) when a URL was
+  given, else a SHA-256 of the normalized pasted text. A hit returns the saved
+  result with `cached: true`, consuming NO daily-cap budget and logging NO usage.
+  A new `force` flag (the "Re-score" action) bypasses the cache; re-scoring
+  overwrites that one job's row instead of duplicating it. (Tailor `flags` are
+  not persisted, so a cached/reopened result shows an empty flags list.)
+- **Results history:** the Dashboard now lists the user's past scored jobs
+  (snippet/host, fit, decision, date), read via RLS — only ever their own rows.
+  Each links to `/scored/[id]`, a read-only view of the full saved result
+  (score, cleared/gaps, tailored bullets, analysis, approval state); a non-owner
+  id 404s.
+- **Rotating loading messages:** the score+tailor wait now cycles five honest,
+  on-brand steps (~2.5s each, stopping on the last), in an `aria-live="polite"`
+  `role="status"` region (no focus trap), cleanly replaced by the result or an
+  error state.
+- **Landing differentiator:** sharpened the hero subtext (AI tailors each score
+  and bullet to the specific posting, grounded only in real experience) and
+  added a calm "No spray-and-pray matches / No inflated bullets / No roles you'd
+  never want / Just honest fit…" section. No competitor named, no fake
+  testimonials or invented stats.
+- Unchanged: scoring/tailoring logic + output format, auth, RLS, agent behavior.
+  Per-user isolation preserved (user_id always from the verified JWT). No
+  migration, no new env var. 13 backend tests pass; build/lint/pre-commit green.
+
 ## 2026-06-19 — M2: on-demand paste-a-link → score + tailor
 - **Migration `0002`:** `tailorings` + `usage_log` with per-user RLS, indexes,
   and explicit GRANTs to `authenticated` + `service_role` (+ sequence usage) so

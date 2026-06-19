@@ -3,22 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { RotatingStatus } from "@/components/RotatingStatus";
 import { backendPost } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
-import type {
-  Decision,
-  ScoreResponse,
-  ScoreResult,
-  TailorResult,
-} from "@/lib/types";
+import type { ScoreResponse, ScoreResult, TailorResult } from "@/lib/types";
+import { decisionClass } from "@/lib/ui";
 
 type Phase = "input" | "loading" | "result";
-
-const decisionClass: Record<Decision, string> = {
-  APPLY: "decision decision-apply",
-  STRETCH: "decision decision-stretch",
-  SKIP: "decision decision-skip",
-};
 
 function List({ items, empty }: { items: string[]; empty: string }) {
   if (!items.length) return <p className="faint">{empty}</p>;
@@ -43,6 +34,7 @@ export default function ScorePage() {
   const [score, setScore] = useState<ScoreResult | null>(null);
   const [tailor, setTailor] = useState<TailorResult | null>(null);
   const [bullets, setBullets] = useState<string[]>([]);
+  const [cached, setCached] = useState(false);
 
   const [approving, setApproving] = useState(false);
   const [approved, setApproved] = useState(false);
@@ -57,7 +49,7 @@ export default function ScorePage() {
     return session.access_token;
   }
 
-  async function run() {
+  async function run(force = false) {
     setError("");
     setNotice("");
     if (!url.trim() && !text.trim()) {
@@ -72,6 +64,7 @@ export default function ScorePage() {
         {
           url: url.trim() || null,
           text: text.trim() || null,
+          force,
         },
       );
 
@@ -85,7 +78,8 @@ export default function ScorePage() {
       setScore(data.score);
       setTailor(data.tailor);
       setBullets(data.tailor.tailored_bullets.map((b) => b.tailored));
-      setApproved(false);
+      setCached(data.cached);
+      setApproved(data.approved);
       setPhase("result");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -123,18 +117,14 @@ export default function ScorePage() {
     setScore(null);
     setTailor(null);
     setBullets([]);
+    setCached(false);
     setApproved(false);
     setError("");
     setNotice("");
   }
 
   if (phase === "loading") {
-    return (
-      <div className="center-screen">
-        <span className="spinner" />
-        Reading the posting, scoring, and tailoring your bullets…
-      </div>
-    );
+    return <RotatingStatus />;
   }
 
   if (phase === "result" && score && tailor) {
@@ -150,6 +140,21 @@ export default function ScorePage() {
             Score another
           </button>
         </div>
+
+        {cached && (
+          <div className="alert alert-info" style={{ marginBottom: "1.25rem" }}>
+            Showing your saved result for this job — no new analysis was run. If
+            your profile or the posting changed,{" "}
+            <button
+              type="button"
+              className="linklike"
+              onClick={() => run(true)}
+            >
+              re-score it
+            </button>
+            .
+          </div>
+        )}
 
         <div className="card">
           <div className="score-head">
@@ -323,7 +328,7 @@ export default function ScorePage() {
         </div>
       )}
 
-      <button type="button" className="btn" onClick={run}>
+      <button type="button" className="btn" onClick={() => run(false)}>
         Score &amp; tailor
       </button>
     </div>

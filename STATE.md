@@ -22,6 +22,17 @@ Operator to-do: run migration `0002`, then the end-to-end test below. No new env
   match analysis, explicit Approve). Trancoso design system; responsive;
   on-brand error/notice states. Nav + dashboard entry points added.
 
+### M2 improvements (2026-06-19, still M2)
+- Exact-match cache before the LLM (normalized URL, else text hash); cache hits
+  cost no daily-cap budget and log no usage; "Re-score" (`force`) overwrites the
+  job's existing row. Tailor flags are not persisted (cached results show none).
+- Results history: Dashboard lists the user's own tailorings (RLS); `/scored/[id]`
+  reopens the full saved result read-only (non-owner → 404).
+- Rotating, accessible loading messages on the score+tailor wait.
+- Landing copy sharpened + a calm differentiator section (no competitor named).
+- No migration, no new env var. Scoring/tailoring logic+format, auth, RLS, and
+  agent behavior unchanged; per-user isolation intact.
+
 ### M1 — Auth + onboarding → profile ✅ (code complete; live RLS test = operator)
 
 ## M0 — Bootstrap the monorepo ✅ COMPLETE & VERIFIED LIVE

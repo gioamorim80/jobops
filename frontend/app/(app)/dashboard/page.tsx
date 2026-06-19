@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import type { ParsedProfile } from "@/lib/types";
+import type { ParsedProfile, ScoreResult } from "@/lib/types";
+import { decisionClass, jobSnippet } from "@/lib/ui";
 
 function ChipList({ items, empty }: { items: string[]; empty: string }) {
   if (!items || items.length === 0) {
@@ -38,6 +39,13 @@ export default async function DashboardPage() {
 
   const parsed = (profile.parsed ?? {}) as Partial<ParsedProfile>;
   const resumeName = profile.resume_file_path?.split("/").pop() ?? "—";
+
+  // RLS scopes this to the signed-in user's own tailorings only.
+  const { data: tailorings } = await supabase
+    .from("tailorings")
+    .select("id, source_url, job_text, score, approved, created_at")
+    .order("created_at", { ascending: false })
+    .limit(20);
 
   return (
     <div>
@@ -109,6 +117,43 @@ export default async function DashboardPage() {
         >
           Replace résumé
         </Link>
+      </div>
+
+      <div className="card">
+        <div className="card-title">Scored jobs</div>
+        {!tailorings || tailorings.length === 0 ? (
+          <p className="faint" style={{ margin: 0 }}>
+            No scored jobs yet. <Link href="/score">Score your first</Link>.
+          </p>
+        ) : (
+          <div className="scored-list">
+            {tailorings.map((t) => {
+              const s = (t.score ?? {}) as Partial<ScoreResult>;
+              return (
+                <Link
+                  key={t.id}
+                  href={`/scored/${t.id}`}
+                  className="scored-item"
+                >
+                  <span className="snippet">
+                    {jobSnippet(t.job_text, t.source_url)}
+                  </span>
+                  <span className="scored-meta">
+                    <span className="scored-fit">{s.fit ?? "—"}</span>
+                    {s.decision && (
+                      <span className={decisionClass[s.decision]}>
+                        {s.decision}
+                      </span>
+                    )}
+                    <span className="faint">
+                      {new Date(t.created_at).toLocaleDateString()}
+                    </span>
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
