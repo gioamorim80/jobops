@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-06-18 — M1 polish: "Chic Trancoso" restyle + inline profile editing
+- **Design (frontend only):** rebuilt the design system around a calm, boutique
+  aesthetic — warm-ivory + soft-lavender base, deep forest-green accent used
+  sparingly, soft purple for focus/secondary touches. Serif display (Fraunces) +
+  humanist sans (Inter), smaller/lighter type scale, generous whitespace, pill
+  buttons, hairline borders, soft shadows, page-wide soft purple wash. No
+  tropical motifs. Tokens in `globals.css`; reusable classes applied across
+  landing, login, onboarding, dashboard, settings. Responsive (clamp type,
+  auto-fit grids, mobile media query); accessible focus rings; spinner uses
+  currentColor so it reads on both buttons and light backgrounds. Loading/empty/
+  error states restyled.
+- **UX fix — edit profile without re-uploading:** Settings is now a full
+  Profile & settings editor (name, target roles, seniority, locations, remote
+  pref, skills, domains + alert frequency + score threshold). Dashboard "Edit
+  profile" → Settings; résumé replacement is a separate, optional action.
+- **Backend (additive only):** new `POST /onboarding/profile` updates the
+  current user's profile fields + preferences and never touches
+  `raw_resume_text` / `resume_file_path` / `onboarding_complete`. user_id comes
+  from the verified JWT only (same security pattern). Validated via Pydantic.
+- **Unchanged:** auth, RLS, storage policies, the onboarding agent, existing API
+  contracts, env handling, and the schema. No migration and no new env var.
+- **Verified:** 9 backend tests pass, ruff + pre-commit clean, frontend
+  build/lint/format green, prod server renders the restyled pages.
+
 ## 2026-06-18 — M1: auth + lightweight onboarding → structured profile
 - **What:** Multi-tenant auth and onboarding, RLS from line one.
   - Migration `0001_m1_profiles_preferences.sql`: `profiles` + `preferences`

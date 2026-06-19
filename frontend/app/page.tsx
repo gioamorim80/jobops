@@ -6,14 +6,14 @@ export default function Home() {
   return (
     <div className="container">
       <header className="hero">
-        <span className="badge" style={{ marginBottom: "1.25rem" }}>
-          <span className="dot dot-ok" /> Multi-tenant · agentic
+        <span className="badge" style={{ marginBottom: "1.5rem" }}>
+          <span className="dot dot-ok" /> Considered job search
         </span>
-        <h1>Land the right role, faster.</h1>
+        <h1>A calmer way to find your next role.</h1>
         <p className="lead">
-          JobOps reads your resume, scores real job postings against your actual
-          experience, and tailors honest application material — never inventing
-          anything you didn&apos;t do.
+          JobOps reads your résumé, scores real postings against your actual
+          experience, and tailors honest application material — grounded only in
+          what you&apos;ve truly done. Nothing invented.
         </p>
         <div className="hero-actions">
           <Link href="/login" className="btn">

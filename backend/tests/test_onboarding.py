@@ -28,6 +28,19 @@ def test_complete_requires_auth() -> None:
     assert response.status_code == 401
 
 
+def test_profile_update_requires_auth() -> None:
+    response = client.post(
+        "/onboarding/profile",
+        json={
+            "full_name": "x",
+            "email": "x@example.com",
+            "parsed": {},
+            "preferences": {"alert_frequency": "weekly", "score_threshold": 60},
+        },
+    )
+    assert response.status_code == 401
+
+
 def test_parse_malformed_auth_header() -> None:
     response = client.post(
         "/onboarding/parse",

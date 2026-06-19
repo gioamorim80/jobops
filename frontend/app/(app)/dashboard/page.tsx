@@ -41,16 +41,7 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "0.75rem",
-          marginBottom: "1.5rem",
-        }}
-      >
+      <div className="section-head">
         <div>
           <h1 style={{ marginBottom: "0.25rem" }}>
             {profile.full_name || "Your profile"}
@@ -59,8 +50,8 @@ export default async function DashboardPage() {
             {profile.email || "No email on file"}
           </p>
         </div>
-        <Link href="/onboarding" className="btn btn-ghost btn-sm">
-          Update profile
+        <Link href="/settings" className="btn btn-secondary btn-sm">
+          Edit profile
         </Link>
       </div>
 
@@ -99,13 +90,20 @@ export default async function DashboardPage() {
       </div>
 
       <div className="card">
-        <div className="card-title">Resume</div>
+        <div className="card-title">Résumé</div>
         <p className="muted" style={{ margin: 0 }}>
           On file: <span className="file-name">{resumeName}</span>
         </p>
-        <p className="faint" style={{ marginTop: "0.5rem", marginBottom: 0 }}>
+        <p className="faint" style={{ marginTop: "0.5rem" }}>
           Stored privately. Only you can access it.
         </p>
+        <Link
+          href="/onboarding"
+          className="btn btn-ghost btn-sm"
+          style={{ marginTop: "0.5rem" }}
+        >
+          Replace résumé
+        </Link>
       </div>
     </div>
   );

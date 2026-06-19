@@ -50,6 +50,19 @@ in production. Next.js later patched to 15.5.19 (security fix).
 3. Run the two-account isolation test (steps in the report): two accounts each
    onboard; each sees ONLY their own profile + resume, verified via RLS.
 
+## M1 polish pass (2026-06-18, still M1)
+- **Design overhaul:** new "Chic Trancoso" design system in `globals.css` (warm
+  ivory + soft lavender base, sparing forest-green accent, Fraunces serif +
+  Inter, lighter type, airy spacing, responsive, accessible focus). Applied
+  across all pages.
+- **Profile editing UX:** editing a field no longer requires a résumé re-upload.
+  Settings is now a full Profile & settings editor; résumé replacement is a
+  separate optional action. Added additive backend endpoint
+  `POST /onboarding/profile` (user_id from verified JWT only; never touches the
+  résumé columns or `onboarding_complete`).
+- **No** schema change, **no** new env var, and **no** change to auth / RLS /
+  storage policies / the onboarding agent / existing API contracts / env handling.
+
 ### Next: M2 — On-demand paste-a-link → score + tailor (the MVP wedge). NOT started.
 
 ### Blockers

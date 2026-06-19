@@ -68,6 +68,13 @@ class CompleteRequest(BaseModel):
     preferences: PreferencesIn
 
 
+class ProfileUpdateRequest(BaseModel):
+    full_name: str = ""
+    email: str = ""
+    parsed: ParsedProfile
+    preferences: PreferencesIn
+
+
 # --------------------------------- helpers ------------------------------------
 def _extract_json_object(text: str) -> dict:
     """Pull the first JSON object out of the model's reply, tolerating fences."""
@@ -160,6 +167,40 @@ def complete_onboarding(user_id: CurrentUserId, body: CompleteRequest) -> dict:
             "email": body.email or None,
             "parsed": body.parsed.model_dump(),
             "onboarding_complete": True,
+        },
+        on_conflict="user_id",
+    ).execute()
+
+    client.table("preferences").upsert(
+        {
+            "user_id": user_id,
+            "alert_frequency": body.preferences.alert_frequency,
+            "score_threshold": body.preferences.score_threshold,
+        },
+        on_conflict="user_id",
+    ).execute()
+
+    return {"ok": True}
+
+
+@router.post("/profile")
+def update_profile(user_id: CurrentUserId, body: ProfileUpdateRequest) -> dict:
+    """Edit individual profile fields + preferences — WITHOUT re-uploading a resume.
+
+    Only updates the columns provided here (parsed / full_name / email and the
+    preferences row). It never touches raw_resume_text, resume_file_path, or
+    onboarding_complete, so editing a field does not require (or disturb) the
+    uploaded resume. Same security model: user_id comes only from the verified
+    JWT, so a caller can only ever write their own rows.
+    """
+    client = get_service_client()
+
+    client.table("profiles").upsert(
+        {
+            "user_id": user_id,
+            "full_name": body.full_name or None,
+            "email": body.email or None,
+            "parsed": body.parsed.model_dump(),
         },
         on_conflict="user_id",
     ).execute()
