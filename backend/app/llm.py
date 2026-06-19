@@ -32,19 +32,27 @@ def run_json_agent(
     *,
     max_tokens: int = 2000,
     model: str | None = None,
+    temperature: float | None = None,
 ) -> tuple[dict, Any]:
     """Run one agent turn and return (parsed_json, usage). Raises HTTPException
-    on misconfiguration (503) or API/parse errors (502)."""
+    on misconfiguration (503) or API/parse errors (502).
+
+    Pass `temperature` (e.g. 0 for the scorer) when you want deterministic output;
+    omit it to use the model's default sampling (natural writing for the tailor).
+    """
     if not settings.anthropic_api_key:
         raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY is not configured.")
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    params: dict = {
+        "model": model or settings.anthropic_model,
+        "max_tokens": max_tokens,
+        "system": system,
+        "messages": [{"role": "user", "content": user}],
+    }
+    if temperature is not None:
+        params["temperature"] = temperature
     try:
-        message = client.messages.create(
-            model=model or settings.anthropic_model,
-            max_tokens=max_tokens,
-            system=system,
-            messages=[{"role": "user", "content": user}],
-        )
+        message = client.messages.create(**params)
     except anthropic.APIError as exc:
         raise HTTPException(status_code=502, detail=f"Agent error: {exc}") from exc
 

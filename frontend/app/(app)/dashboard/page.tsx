@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { DeleteTailoringButton } from "@/components/DeleteTailoringButton";
 import { createClient } from "@/lib/supabase/server";
 import type { ParsedProfile, ScoreResult } from "@/lib/types";
 import { decisionClass, jobSnippet } from "@/lib/ui";
@@ -130,26 +131,25 @@ export default async function DashboardPage() {
             {tailorings.map((t) => {
               const s = (t.score ?? {}) as Partial<ScoreResult>;
               return (
-                <Link
-                  key={t.id}
-                  href={`/scored/${t.id}`}
-                  className="scored-item"
-                >
-                  <span className="snippet">
-                    {jobSnippet(t.job_text, t.source_url)}
-                  </span>
-                  <span className="scored-meta">
-                    <span className="scored-fit">{s.fit ?? "—"}</span>
-                    {s.decision && (
-                      <span className={decisionClass[s.decision]}>
-                        {s.decision}
-                      </span>
-                    )}
-                    <span className="faint">
-                      {new Date(t.created_at).toLocaleDateString()}
+                <div key={t.id} className="scored-item">
+                  <Link href={`/scored/${t.id}`} className="scored-link">
+                    <span className="snippet">
+                      {jobSnippet(t.job_text, t.source_url)}
                     </span>
-                  </span>
-                </Link>
+                    <span className="scored-meta">
+                      <span className="scored-fit">{s.fit ?? "—"}</span>
+                      {s.decision && (
+                        <span className={decisionClass[s.decision]}>
+                          {s.decision}
+                        </span>
+                      )}
+                      <span className="faint">
+                        {new Date(t.created_at).toLocaleDateString()}
+                      </span>
+                    </span>
+                  </Link>
+                  <DeleteTailoringButton id={t.id} />
+                </div>
               );
             })}
           </div>

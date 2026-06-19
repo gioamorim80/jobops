@@ -2,26 +2,30 @@
 
 import { useEffect, useState } from "react";
 
-// Honest steps of the score+tailor run. Advances in order ~every 2.5s and
-// stops on the last line while the request is still in flight.
+// Honest steps of the score+tailor run, with a couple of gentle "still working"
+// lines so longer waits feel acknowledged. Loops continuously until the result
+// arrives (the component unmounts) — never freezes on the last line.
 const MESSAGES = [
   "Reading the posting…",
   "Sizing it up against your real experience…",
   "Finding your strongest honest angles…",
   "Tailoring your bullets — no embellishment…",
-  "Almost there…",
+  "Good things take a moment…",
+  "Still on it — almost there…",
 ];
 
-const INTERVAL_MS = 2500;
+const INTERVAL_MS = 3500;
 
 export function RotatingStatus() {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
-    if (index >= MESSAGES.length - 1) return;
-    const timer = setTimeout(() => setIndex((i) => i + 1), INTERVAL_MS);
-    return () => clearTimeout(timer);
-  }, [index]);
+    const timer = setInterval(
+      () => setIndex((i) => (i + 1) % MESSAGES.length),
+      INTERVAL_MS,
+    );
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <div className="center-screen" role="status" aria-live="polite">

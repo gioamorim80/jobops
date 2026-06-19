@@ -1,5 +1,5 @@
 import type { ScoreResult, TailoredBullet } from "@/lib/types";
-import { decisionClass } from "@/lib/ui";
+import { decisionClass, fitBand } from "@/lib/ui";
 
 function List({ items, empty }: { items: string[]; empty: string }) {
   if (!items?.length) return <p className="faint">{empty}</p>;
@@ -33,6 +33,7 @@ export function ScoredResult({
             {score.fit}
             <small>/100</small>
           </span>
+          <span className="band">{fitBand(score.fit)}</span>
           <span className={decisionClass[score.decision] ?? "decision"}>
             {score.decision}
           </span>

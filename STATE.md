@@ -33,6 +33,17 @@ Operator to-do: run migration `0002`, then the end-to-end test below. No new env
 - No migration, no new env var. Scoring/tailoring logic+format, auth, RLS, and
   agent behavior unchanged; per-user isolation intact.
 
+### M2 refinements (2026-06-19, still M2)
+- Scorer runs at `temperature=0` (Tailor unchanged) for stable scores; result
+  views show a qualitative fit band (Strong/Solid/Stretch/Likely skip) beside
+  the number + decision.
+- Per-item delete on the Scored-jobs list (inline confirm), via Supabase client
+  under RLS — own rows only.
+- Loading messages loop continuously (~3.5s, six warm lines) instead of freezing.
+- Landing copy: specificity over "uses AI"; tightened differentiator to one
+  paragraph, removed the dashed list.
+- No RLS/auth/isolation change, no migration, no new env var.
+
 ### M1 — Auth + onboarding → profile ✅ (code complete; live RLS test = operator)
 
 ## M0 — Bootstrap the monorepo ✅ COMPLETE & VERIFIED LIVE

@@ -18,9 +18,10 @@ export default function Home() {
         <section className="hero">
           <h1>A calmer way to find your next role.</h1>
           <p className="lead">
-            JobOps uses AI to tailor every fit score and every résumé bullet to
-            the <em>specific</em> posting — grounded only in your real
-            experience. No generic matches. No inflated claims.
+            JobOps reads each posting in full and reasons against your real
+            experience — purpose-built analysis, not keyword matching — to score
+            your fit and tailor every résumé bullet to that one role. Grounded
+            only in what you&apos;ve actually done.
           </p>
           <div className="hero-actions">
             <Link href="/login" className="btn">
@@ -29,21 +30,14 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="card ethos">
-          <h2>Tailored to the role. True to you.</h2>
+        <section className="ethos">
+          <h2>No spray-and-pray.</h2>
           <p className="muted">
-            Most tools fire off look-alike matches and pad your application with
-            things you never did. JobOps reads each posting and your real
-            profile, then scores and tailors for that one role — honestly.
+            JobOps won&apos;t fling your résumé at roles you&apos;d never want
+            or pad it with things you didn&apos;t do. It weighs each posting
+            against your real background and tells you honestly where you fit —
+            and where you don&apos;t.
           </p>
-          <ul className="ethos-list">
-            <li>No spray-and-pray matches.</li>
-            <li>No inflated bullets.</li>
-            <li>No roles you&apos;d never want.</li>
-            <li>
-              Just honest fit, grounded in what you&apos;ve actually done.
-            </li>
-          </ul>
         </section>
 
         <section className="feature-grid">

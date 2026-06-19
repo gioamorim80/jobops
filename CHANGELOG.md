@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## 2026-06-19 — M2 refinements: score stability, delete, loading loop, copy
+- **Scoring stability:** the Scorer call now runs at `temperature=0` (added an
+  optional `temperature` to `run_json_agent`; the Tailor call is unchanged for
+  natural writing), so the same job + profile scores consistently. The result
+  views now show a qualitative band beside the 0–100 number and APPLY/STRETCH/
+  SKIP: 80–100 "Strong fit", 65–79 "Solid fit", 50–64 "Stretch", <50 "Likely
+  skip" (derived client-side from `fit`, so cached/history results show it too).
+- **Delete saved results:** each Scored-jobs row has a delete action with a small
+  inline confirm. Deletes go through the Supabase client under RLS
+  (`user_id = auth.uid()`), so a user can only ever delete their own rows; the
+  list refreshes after.
+- **Loading messages:** the score+tailor wait now loops continuously (~3.5s per
+  line) through six honest, warm lines (incl. gentle "still working" ones)
+  instead of freezing on the last — same `aria-live` status region, no focus trap.
+- **Landing copy:** replaced generic "uses AI" with specificity ("reads each
+  posting in full and reasons against your real experience — purpose-built
+  analysis, not keyword matching"); tightened the differentiator to one confident
+  paragraph and removed the unfinished-looking dashed list (kept the
+  "no spray-and-pray" idea).
+- No RLS/auth/isolation change, no migration, no new env var. Scoring/tailoring
+  prompts and output shape unchanged. 13 backend tests + build/lint/pre-commit green.
+
 ## 2026-06-19 — M2 improvements: cache, history, loading UX, landing copy
 - **Exact-match cache (cost saver):** before any LLM call, `/ondemand/score`
   checks whether the user already scored this exact job — matched on normalized

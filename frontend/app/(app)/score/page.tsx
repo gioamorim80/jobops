@@ -7,7 +7,7 @@ import { RotatingStatus } from "@/components/RotatingStatus";
 import { backendPost } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
 import type { ScoreResponse, ScoreResult, TailorResult } from "@/lib/types";
-import { decisionClass } from "@/lib/ui";
+import { decisionClass, fitBand } from "@/lib/ui";
 
 type Phase = "input" | "loading" | "result";
 
@@ -162,6 +162,7 @@ export default function ScorePage() {
               {score.fit}
               <small>/100</small>
             </span>
+            <span className="band">{fitBand(score.fit)}</span>
             <span className={decisionClass[score.decision]}>
               {score.decision}
             </span>

@@ -241,10 +241,12 @@ def score_and_tailor(user_id: CurrentUserId, body: ScoreRequest) -> dict:
     job_text = job_text[:MAX_JOB_CHARS]
 
     # 6) Score, then tailor — both on the backend; log every call.
+    # temperature=0 keeps scoring stable: the same job + profile scores the same.
     score_raw, score_usage = run_json_agent(
         SCORER_SYSTEM_PROMPT_V1,
         f"USER PROFILE (JSON):\n{json.dumps(parsed)}\n\nJOB POSTING:\n{job_text}",
         max_tokens=1200,
+        temperature=0,
     )
     log_call(client, user_id, "score", score_usage)
     score = _normalize_score(score_raw)

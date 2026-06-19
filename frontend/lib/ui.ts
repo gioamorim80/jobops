@@ -6,6 +6,15 @@ export const decisionClass: Record<Decision, string> = {
   SKIP: "decision decision-skip",
 };
 
+// Qualitative band for the 0–100 fit score, so small run-to-run variance reads
+// as the same verdict rather than an inconsistency.
+export function fitBand(fit: number): string {
+  if (fit >= 80) return "Strong fit";
+  if (fit >= 65) return "Solid fit";
+  if (fit >= 50) return "Stretch";
+  return "Likely skip";
+}
+
 // First meaningful line / snippet of a posting, for history list labels.
 export function jobSnippet(
   jobText: string | null,
