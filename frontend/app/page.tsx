@@ -30,36 +30,39 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="ethos">
-          <h2>No spray-and-pray.</h2>
-          <p className="muted">
-            JobOps won&apos;t fling your résumé at roles you&apos;d never want
-            or pad it with things you didn&apos;t do. It weighs each posting
-            against your real background and tells you honestly where you fit —
-            and where you don&apos;t.
-          </p>
-        </section>
-
         <section className="feature-grid">
           <div className="card">
             <div className="card-title">Paste a link, get a fit score</div>
             <p className="muted" style={{ margin: 0 }}>
-              An instant 0–100 fit score with the requirements you clear and the
-              honest gaps — grounded in your real profile.
+              An instant 0–100 fit score with a clear band, the requirements you
+              clear, and the honest gaps — grounded in your real profile.
             </p>
           </div>
           <div className="card">
-            <div className="card-title">Tailored, truthful bullets</div>
+            <div className="card-title">Suggested changes to your résumé</div>
             <p className="muted" style={{ margin: 0 }}>
-              Reorders and rephrases what&apos;s true on your resume. It never
-              fabricates titles, metrics, or skills.
+              Edits tailored to the posting, each showing where it applies. It
+              reorders and rephrases what&apos;s true — never invents titles,
+              metrics, or skills.
             </p>
           </div>
           <div className="card">
-            <div className="card-title">Recurring scored matches</div>
+            <div className="card-title">An honest coach</div>
             <p className="muted" style={{ margin: 0 }}>
-              Opt into daily or weekly email alerts of new roles above your
-              score threshold. Pause anytime.
+              A warm, in-scope chat to add the true context your résumé missed —
+              what you built, who really owned what, a title the timeline
+              flattened. Nothing&apos;s saved unless you confirm.
+            </p>
+          </div>
+          <div className="card">
+            <div className="card-title">
+              Recurring scored matches
+              <span className="soon">Coming soon</span>
+            </div>
+            <p className="muted" style={{ margin: 0 }}>
+              Soon: opt into daily or weekly emails of new roles scored against
+              your profile. It won&apos;t fling your résumé at jobs you&apos;d
+              never want — only honest fits.
             </p>
           </div>
         </section>

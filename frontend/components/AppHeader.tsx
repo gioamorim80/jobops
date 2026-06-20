@@ -4,7 +4,7 @@ export function AppHeader({ email }: { email: string }) {
   return (
     <header className="app-header">
       <div className="container app-header-inner">
-        <Link href="/dashboard" className="brand">
+        <Link href="/home" className="brand">
           JobOps
         </Link>
         <nav className="app-nav">

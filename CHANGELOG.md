@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-06-20 — Landing tiles + logged-in Home launcher (frontend only)
+- **Landing:** removed the standalone "No spray-and-pray." section (the hero is
+  the single intro). Reworked the feature tiles into a clean 2×2 (stacks on
+  mobile): renamed "Tailored, truthful bullets" → "Suggested changes to your
+  résumé" to match the app; added an "An honest coach" tile (live); and reworded
+  the email-alerts tile as upcoming with a "Coming soon" label, folding in the
+  spray-and-pray line — honest as roadmap, not a current capability.
+- **Logged-in Home:** new `/home` light launcher — a warm "what would you like
+  to do?" with action cards (Score a new job → /score, Review my scored jobs →
+  /dashboard, Chat with the Coach → /coach) plus a small recent-scored peek
+  (max 3, "See all" → Dashboard). It does NOT duplicate the Dashboard. The
+  JobOps logo now routes here when logged in; logged-out logo unchanged.
+- Frontend only; design system + tone unchanged. No backend/auth/RLS/logic
+  changes; the Home peek reads the user's own tailorings via existing RLS.
+  build/lint/pre-commit green.
+
 ## 2026-06-20 — M2.5/M2 refinements: coach tone, chat cap fix, tailoring labels
 - **Coach tone (M2.5):** recalibrated the system prompt to v2 — "a warm friend, in
   a professional setting": composed, not over-familiar. Refusals open gently

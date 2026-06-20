@@ -33,6 +33,15 @@ M0, M1, M2, and M2.5 are built, deployed, and live. M3–M6 are planned (see
 - No migration, no new env var. Scoring/tailoring logic+format, auth, RLS, and
   agent behavior unchanged; per-user isolation intact.
 
+## Landing + Home launcher (2026-06-20, frontend only)
+- Landing: dropped the standalone "No spray-and-pray." section; feature tiles are
+  now a 2×2 (stacks on mobile) — renamed "Suggested changes to your résumé",
+  added an "An honest coach" tile (live), and the email-alerts tile is labeled
+  "Coming soon" (folds in the spray-and-pray line; honest as roadmap).
+- New logged-in `/home` light launcher (action cards → Score / Dashboard / Coach
+  + a small recent-scored peek); the JobOps logo routes here when logged in.
+  Dashboard stays the detailed view. No backend/auth/RLS/logic change.
+
 ## M2.5/M2 refinements (2026-06-20)
 - Coach voice → v2 "warm friend, professional setting": composed, gentle refusals
   ("Well —"/"Ah, I wish I could —", never "Ha"), no endearments or drink refs.

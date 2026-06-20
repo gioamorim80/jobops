@@ -470,7 +470,7 @@ input[type="range"] {
 }
 .feature-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr)); /* 2x2 on desktop */
   gap: 1.5rem;
   margin-top: 3.5rem;
   align-items: stretch; /* equal-height cards across the row */
@@ -479,6 +479,48 @@ input[type="range"] {
    feature cards share a top edge instead of staggering. */
 .feature-grid > .card {
   margin-top: 0;
+}
+/* small "Coming soon" label on a roadmap tile */
+.soon {
+  display: inline-block;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lilac);
+  background: var(--lilac-soft);
+  border-radius: var(--radius-pill);
+  padding: 0.18rem 0.55rem;
+}
+
+/* logged-in Home launcher */
+.launcher-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+.launcher-card {
+  display: block;
+  color: var(--text);
+  transition: border-color 0.15s ease;
+}
+.launcher-card:hover {
+  border-color: var(--lilac);
+}
+.launcher-card .card-title {
+  margin-bottom: 0.5rem;
+}
+.launcher-card p {
+  margin: 0;
+}
+@media (max-width: 720px) {
+  .launcher-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* score + tailor results */
@@ -700,15 +742,6 @@ input[type="range"] {
   font-size: 1.05rem;
 }
 
-/* landing differentiator */
-.ethos {
-  margin-top: 3.5rem;
-  max-width: 38rem;
-}
-.ethos p {
-  margin: 0;
-}
-
 /* understated site footer (landing) */
 .site-footer {
   border-top: 1px solid var(--border);
@@ -788,6 +821,9 @@ input[type="range"] {
   }
   .summary-grid {
     gap: 1.1rem;
+  }
+  .feature-grid {
+    grid-template-columns: 1fr;
   }
   .bubble,
   .proposal {
