@@ -33,6 +33,13 @@ M0, M1, M2, and M2.5 are built, deployed, and live. M3–M6 are planned (see
 - No migration, no new env var. Scoring/tailoring logic+format, auth, RLS, and
   agent behavior unchanged; per-user isolation intact.
 
+## Home hub tweaks (2026-06-20, frontend only)
+- Plain-English greeting ("Hi {name} — what would you like to do?"), no "Olá";
+  removed the subtitle line. Launcher tiles now equal-height/top-aligned.
+- Middle tile is "Edit my profile" (→ Dashboard profile section) instead of the
+  redundant "Review my scored jobs"; the "Recently scored" panel + "See all"
+  remains the history path. Tiles: Score a new job / Edit my profile / Coach.
+
 ## Landing + Home launcher (2026-06-20, frontend only)
 - Landing: dropped the standalone "No spray-and-pray." section; feature tiles are
   now a 2×2 (stacks on mobile) — renamed "Suggested changes to your résumé",

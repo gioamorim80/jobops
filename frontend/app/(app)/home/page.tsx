@@ -24,6 +24,9 @@ export default async function HomePage() {
   }
 
   const firstName = (profile.full_name ?? "").trim().split(" ")[0];
+  const greeting = firstName
+    ? `Hi ${firstName} — what would you like to do?`
+    : "What would you like to do?";
 
   // A small peek only (max 3) — not the full list. RLS scopes to this user.
   const { data: recent } = await supabase
@@ -34,11 +37,7 @@ export default async function HomePage() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: "0.25rem" }}>
-        {firstName ? `Olá, ${firstName} — ` : "Olá — "}what would you like to
-        do?
-      </h1>
-      <p className="muted">Pick a place to start. Your search, at your pace.</p>
+      <h1>{greeting}</h1>
 
       <div className="launcher-grid">
         <Link href="/score" className="card launcher-card">
@@ -49,10 +48,10 @@ export default async function HomePage() {
           </p>
         </Link>
         <Link href="/dashboard" className="card launcher-card">
-          <div className="card-title">Review my scored jobs</div>
+          <div className="card-title">Edit my profile</div>
           <p className="muted">
-            Revisit everything you&apos;ve scored — fit, decision, and the
-            suggestions you saved.
+            See and update your profile — skills, preferences, and how your
+            experience is framed — so every score reflects the real you.
           </p>
         </Link>
         <Link href="/coach" className="card launcher-card">

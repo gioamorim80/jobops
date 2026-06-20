@@ -502,6 +502,12 @@ input[type="range"] {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.25rem;
   margin-top: 1.5rem;
+  align-items: stretch; /* equal-height cards across the row */
+}
+/* grid `gap` handles spacing — cancel the stacked-card top margin so the
+   launcher cards share a top edge instead of staggering. */
+.launcher-grid > .card {
+  margin-top: 0;
 }
 .launcher-card {
   display: block;

@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 2026-06-20 — Home hub tweaks (frontend only)
+- Greeting is now plain English ("Hi {firstName} — what would you like to do?",
+  or "What would you like to do?" with no name) — removed "Olá"; no non-English
+  words user-facing.
+- Removed the "Pick a place to start…" subtitle; the heading stands alone.
+- Fixed launcher tile alignment: equal-height, top-aligned row (zeroed the
+  global stacked-card top margin inside `.launcher-grid` + explicit
+  `align-items: stretch`); stacks cleanly on mobile.
+- Replaced the middle tile "Review my scored jobs" with **"Edit my profile"**
+  (→ Dashboard's profile section), removing the redundancy with the "Recently
+  scored" panel below. Tiles are now Score a new job / Edit my profile / Chat
+  with the Coach. The "Recently scored" panel + "See all" remains the path to
+  scored-job history.
+- Frontend only; design system + tone unchanged, no logic/auth/RLS change.
+
 ## 2026-06-20 — Landing tiles + logged-in Home launcher (frontend only)
 - **Landing:** removed the standalone "No spray-and-pray." section (the hero is
   the single intro). Reworked the feature tiles into a clean 2×2 (stacks on
