@@ -1,10 +1,10 @@
 # STATE — where the build is
 
-## Current milestone: M2 — On-demand paste-a-link → score + tailor ✅ (code complete)
-Status: code complete & locally verified (tests/lint/build/pre-commit green).
-Operator to-do: run migration `0002`, then the end-to-end test below. No new env var.
+## Current position: M0–M2.5 done & deployed. Next up: M3 (job-source adapters).
+M0, M1, M2, and M2.5 are built, deployed, and live. M3–M6 are planned (see
+`ROADMAP.md`). Detailed per-milestone notes below; newest refinements first.
 
-### M2 — what was built
+### M2 — what was built (the on-demand paste-a-link flow)
 - **Migration** `supabase/migrations/0002_m2_tailorings_usage.sql`: `tailorings`
   and `usage_log` tables, per-user RLS (`user_id = auth.uid()`), indexes, and
   explicit GRANTs to `authenticated` + `service_role` (+ sequence usage) so the
