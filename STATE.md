@@ -33,6 +33,14 @@ M0, M1, M2, and M2.5 are built, deployed, and live. M3–M6 are planned (see
 - No migration, no new env var. Scoring/tailoring logic+format, auth, RLS, and
   agent behavior unchanged; per-user isolation intact.
 
+## Writing-style rule + README rewrite (2026-06-20, docs only)
+- Added a durable "Writing style for docs & UI copy" section to CLAUDE.md (plain,
+  natural copy; no em-dash fragments or emphasis taglines; "the user/users" in
+  product/README copy; plain "resume"; no hype). Applies to all future docs/UI.
+- Rewrote README.md to follow it; factual content unchanged. Relabeled `prompts/`
+  as a historical, non-maintained record, with STATE.md/CHANGELOG.md as the
+  current source of truth.
+
 ## Home hub tweaks (2026-06-20, frontend only)
 - Plain-English greeting ("Hi {name} — what would you like to do?"), no "Olá";
   removed the subtitle line. Launcher tiles now equal-height/top-aligned.

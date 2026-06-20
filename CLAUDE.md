@@ -53,6 +53,24 @@ matches. This file is your contract. Read it at the start of every session.
 - Backend: `ruff` (config in `ruff.toml`). Frontend: ESLint + Prettier (wired in M0).
 - CI runs the hooks on every push (`.github/workflows/ci.yml`).
 
+## Writing style for docs & UI copy
+Applies to all human-facing text: README and other docs, landing/marketing copy,
+and in-app UI copy. (Internal handoff notes in STATE.md/CHANGELOG.md may stay
+terse.)
+- Write plainly and naturally, the way a person would. Avoid "AI-sounding" copy.
+- Do not use the em-dash-plus-fragment construction for emphasis (for example
+  "no passwords" tacked on after a dash, or "not bolted on"). Rewrite it as a
+  full sentence, or fold the idea into the sentence.
+- Avoid punchy parenthetical taglines used for emphasis (for example
+  "(built in, not bolted on)" or "(with Claude Code, milestone by milestone)").
+- Use em-dashes sparingly. Prefer periods and commas.
+- In product, landing, and README copy, refer to "the user", "users", or
+  "people", not "you/your", unless writing direct in-app microcopy.
+- Do not repeat a distinctive adjective close to itself (for example "honest"
+  twice in one paragraph).
+- Use plain "resume" with no accents, spelled consistently throughout.
+- No hype or filler. Cut sentences that only add emphasis without information.
+
 ## Milestone discipline
 - Work ONE milestone at a time, in order (see ROADMAP.md). Do not scaffold M4 while
   M1 is unfinished.

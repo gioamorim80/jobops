@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2026-06-20 — Writing-style rule + README rewrite (docs only)
+- Added a "Writing style for docs & UI copy" section to CLAUDE.md so it applies
+  to all future docs and UI copy: write plainly, no em-dash-plus-fragment
+  emphasis, no punchy parenthetical taglines, sparing em-dashes, "the user/users"
+  rather than "you/your" in product/README copy, no repeating a distinctive
+  adjective next to itself, plain "resume" with no accents, and no hype or filler.
+- Rewrote README.md to follow the rule: removed every em-dash fragment and
+  emphasis tagline, switched descriptive copy to "the user/users", fixed the
+  doubled "honest" in the opening paragraph, and changed all "résumé" to "resume".
+  Factual content (current features vs. roadmap) is unchanged.
+- Relabeled the `prompts/` entry in the repo map as a historical, point-in-time
+  record that is not maintained or complete, and noted STATE.md and CHANGELOG.md
+  as the current source of truth.
+
 ## 2026-06-20 — Home hub tweaks (frontend only)
 - Greeting is now plain English ("Hi {firstName} — what would you like to do?",
   or "What would you like to do?" with no name) — removed "Olá"; no non-English
