@@ -71,6 +71,31 @@ export type ScoreResponse =
     }
   | { status: "unreadable" | "limit_reached" | "no_profile"; message: string };
 
+export interface ProposalChanges {
+  add_skills: string[];
+  add_domains: string[];
+  add_target_roles: string[];
+  add_attribution_notes: string[];
+  set_seniority: string;
+  set_remote_pref: string;
+}
+
+export interface Proposal {
+  summary: string;
+  changes: ProposalChanges;
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  proposal?: Proposal | null;
+  applied?: boolean;
+}
+
+export type EnrichResponse =
+  | { status: "ok"; reply: string; proposal: Proposal | null }
+  | { status: "limit_reached"; message: string };
+
 // A saved tailoring row (read via RLS — only ever the user's own).
 export interface Tailoring {
   id: string;

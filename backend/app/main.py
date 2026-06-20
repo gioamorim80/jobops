@@ -13,6 +13,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.enrich import router as enrich_router
 from app.onboarding import router as onboarding_router
 from app.ondemand import router as ondemand_router
 
@@ -28,6 +29,7 @@ app.add_middleware(
 
 app.include_router(onboarding_router)
 app.include_router(ondemand_router)
+app.include_router(enrich_router)
 
 
 def get_anthropic_client() -> anthropic.Anthropic:

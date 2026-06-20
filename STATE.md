@@ -33,6 +33,19 @@ Operator to-do: run migration `0002`, then the end-to-end test below. No new env
 - No migration, no new env var. Scoring/tailoring logic+format, auth, RLS, and
   agent behavior unchanged; per-user isolation intact.
 
+## M2.5 — Conversational profile-enrichment coach ✅ (code complete)
+- New "Coach" chat (nav → `/coach`): a warm Trancoso-voiced agent that helps the
+  user add TRUE résumé-missed context and proposes structured profile changes the
+  user must confirm. Backend `/enrich/chat` + `/enrich/apply`; confirmed changes
+  merge into `profiles.parsed` (attribution_notes included).
+- Guardrails: scope fence (off-topic → warm redirect), no fabrication + human
+  gate, shared per-user daily cap with friendly limit message, bounded
+  conversation, usage logged (`enrich`); transcript not persisted, content not
+  logged. user_id always from the verified JWT.
+- No migration, no new env var. Operator test: open Coach, share a real project,
+  confirm a proposed change, see it in Settings; try an off-topic ask for the
+  refusal voice.
+
 ### M2 refinements (2026-06-19, still M2)
 - Scorer runs at `temperature=0` (Tailor unchanged) for stable scores; result
   views show a qualitative fit band (Strong/Solid/Stretch/Likely skip) beside

@@ -1,5 +1,35 @@
 # CHANGELOG
 
+## 2026-06-20 — M2.5: conversational profile-enrichment coach
+- **New feature:** a warm chat ("Coach", reachable from the nav) where a logged-in
+  user enriches their profile with TRUE context the résumé missed — stories of
+  what they built, corrected project attribution, fixed title/timelines, real
+  skills/domains. The agent has the user's profile as context and asks targeted
+  questions, then proposes a structured change the user must confirm.
+- **Voice:** a chic, warm, witty friend-from-Trancoso system prompt
+  (`agents/enrich.py`) — light and funny by default, genuinely caring when
+  someone's discouraged; warmth in the words, no emoji.
+- **Hard guardrails (in the prompt + code):**
+  - Scope fence: off-topic asks (recipes, homework, coding, chitchat) get a warm,
+    playful redirect back to the job hunt — never a scold.
+  - No fabrication + human gate: the agent proposes structured changes; nothing
+    is written until the user clicks "Add to profile". `/enrich/apply` merges only
+    confirmed changes into `profiles.parsed` (append + case-insensitive dedupe;
+    other fields preserved).
+  - Cost cap: each chat turn counts against the shared per-user daily LLM cap;
+    on exceed, a friendly in-voice "let's pick this up tomorrow" (not a crash).
+    Conversation bounded (last 20 turns, 2000 chars/msg). Usage logged
+    (action `enrich`).
+  - PII: the transcript is not persisted; raw message content is never logged.
+- **Backend:** `/enrich/chat` + `/enrich/apply`; shared `run_json_chat` helper
+  for multi-turn JSON. user_id always from the verified JWT; reads/writes touch
+  only the caller's own profile.
+- **Frontend:** `/coach` chat in the Trancoso design system (bubbles, proposal
+  card with Add/Not-now, typing indicator, aria-live log, on-brand error/limit
+  states); nav wraps cleanly to a second row on phones.
+- No migration (profiles/attribution_notes already exist), no new env var.
+  16 backend tests + build/lint/pre-commit green.
+
 ## 2026-06-19 — M2 refinements: score stability, delete, loading loop, copy
 - **Scoring stability:** the Scorer call now runs at `temperature=0` (added an
   optional `temperature` to `run_json_agent`; the Tailor call is unchanged for

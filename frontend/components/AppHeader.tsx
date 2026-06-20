@@ -10,6 +10,7 @@ export function AppHeader({ email }: { email: string }) {
         <nav className="app-nav">
           <Link href="/dashboard">Dashboard</Link>
           <Link href="/score">Score a job</Link>
+          <Link href="/coach">Coach</Link>
           <Link href="/settings">Settings</Link>
         </nav>
         <div className="app-header-right">
