@@ -21,16 +21,19 @@ def _today_start_iso() -> str:
     return start.isoformat()
 
 
-def count_calls_today(client: Client, user_id: str) -> int:
-    """How many agent calls this user has logged since 00:00 UTC."""
-    result = (
+def count_calls_today(client: Client, user_id: str, action: str | None = None) -> int:
+    """How many agent calls this user has logged since 00:00 UTC. Pass `action`
+    to count only one kind of call (e.g. 'enrich'), so a per-feature cap isn't
+    polluted by other features' calls."""
+    query = (
         client.table("usage_log")
         .select("id", count="exact")
         .eq("user_id", user_id)
         .gte("created_at", _today_start_iso())
-        .execute()
     )
-    return result.count or 0
+    if action is not None:
+        query = query.eq("action", action)
+    return query.execute().count or 0
 
 
 def log_call(client: Client, user_id: str, action: str, usage: Any) -> None:

@@ -203,17 +203,19 @@ export default function ScorePage() {
         )}
 
         <div className="card">
-          <div className="card-title">Tailored bullets</div>
+          <div className="card-title">Suggested changes to your résumé</div>
           <p className="hint" style={{ marginTop: 0, marginBottom: "1rem" }}>
-            Grounded in your résumé — reordered and rephrased, never invented.
-            Edit any of them, then approve.
+            Each one shows where on your résumé it applies. Reordered and
+            rephrased from your real experience — never invented. Edit any of
+            them, then approve.
           </p>
           {tailor.tailored_bullets.length === 0 && (
-            <p className="faint">No bullets were generated.</p>
+            <p className="faint">No suggestions were generated.</p>
           )}
           {tailor.tailored_bullets.map((b, i) => (
             <div key={i} className="bullet">
-              {b.original && <p className="orig">From: {b.original}</p>}
+              {b.where && <p className="where">{b.where}</p>}
+              {b.original && <p className="orig">Currently: {b.original}</p>}
               <textarea
                 className="textarea"
                 value={bullets[i] ?? ""}

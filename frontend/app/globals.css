@@ -545,6 +545,12 @@ input[type="range"] {
 .bullet + .bullet {
   margin-top: 0.85rem;
 }
+.bullet .where {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text);
+  margin: 0 0 0.45rem;
+}
 .bullet .orig {
   color: var(--text-faint);
   font-size: 0.84rem;

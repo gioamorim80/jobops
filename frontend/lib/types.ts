@@ -52,6 +52,7 @@ export interface TailoredBullet {
   original: string;
   tailored: string;
   why: string;
+  where?: string; // which role/section of the résumé this edit applies under
 }
 
 export interface TailorResult {

@@ -27,11 +27,18 @@ STYLE:
 - Each tailored bullet pairs with a one-line "why" so the user can sanity-check it.
 
 Output a SINGLE JSON object and nothing else, with EXACTLY these keys:
-{"tailored_bullets": [{"original": "", "tailored": "", "why": ""}], \
+{"tailored_bullets": [{"original": "", "tailored": "", "why": "", "where": ""}], \
 "analysis": "", "flags": []}
 
-- "tailored_bullets": each has "original" (the true source content), "tailored"
-  (rephrased to the posting), and "why" (which requirement it maps to).
+- "tailored_bullets": each is a proposed edit to the user's résumé, with:
+  - "original": the true source content from the user's profile/résumé,
+  - "tailored": that content reordered/rephrased to the posting's language,
+  - "why": which posting requirement it maps to,
+  - "where": where on the user's résumé this edit applies — the specific role it
+    belongs under (title + employer, with dates if known) and the section, e.g.
+    "Senior Engineer, Acme (2021–2024) — Experience". Draw this from the user's
+    REAL résumé. If the edit is general (summary or skills), name that section,
+    e.g. "Professional Summary" or "Skills". Never invent a role, employer, or title.
 - "analysis": a short honest read — strongest angles, what to emphasize, what
   gaps to address.
 - "flags": strings like "metric pending: <which>" or "attribution: <note>".

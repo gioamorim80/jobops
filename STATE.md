@@ -33,6 +33,15 @@ Operator to-do: run migration `0002`, then the end-to-end test below. No new env
 - No migration, no new env var. Scoring/tailoring logic+format, auth, RLS, and
   agent behavior unchanged; per-user isolation intact.
 
+## M2.5/M2 refinements (2026-06-20)
+- Coach voice → v2 "warm friend, professional setting": composed, gentle refusals
+  ("Well —"/"Ah, I wish I could —", never "Ha"), no endearments or drink refs.
+- Coach cap fixed: counts only the user's own `enrich` turns (1 message = 1 turn),
+  generous default 50 (`ENRICH_DAILY_TURN_CAP`); normal conversations don't trip it.
+- Tailoring section renamed "Suggested changes to your résumé"; each suggestion
+  now shows WHERE it applies (real role + section), keeping original→suggested→why.
+- No RLS/auth/isolation change, no migration; `ENRICH_DAILY_TURN_CAP` optional (50).
+
 ## M2.5 — Conversational profile-enrichment coach ✅ (code complete)
 - New "Coach" chat (nav → `/coach`): a warm Trancoso-voiced agent that helps the
   user add TRUE résumé-missed context and proposes structured profile changes the

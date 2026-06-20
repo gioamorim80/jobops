@@ -13,7 +13,7 @@ usage_log. The per-user daily LLM cap is shared with the rest of the app.
 import json
 from typing import Literal
 
-from agents.enrich import ENRICH_SYSTEM_PROMPT_V1
+from agents.enrich import ENRICH_SYSTEM_PROMPT_V2
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
@@ -136,14 +136,15 @@ def merge_changes(parsed: dict, changes: dict) -> dict:
 def chat(user_id: CurrentUserId, body: ChatRequest) -> dict:
     client = get_service_client()
 
-    # Cost guardrail: shared per-user daily LLM-call cap (friendly, not a crash).
-    if count_calls_today(client, user_id) >= settings.per_user_daily_llm_cap:
+    # Abuse guardrail only: a generous daily cap counting just this user's chat
+    # turns (one user message = one turn), so real conversations aren't cut off.
+    if count_calls_today(client, user_id, action="enrich") >= settings.enrich_daily_turn_cap:
         return {
             "status": "limit_reached",
             "message": (
-                "Let's pick this up tomorrow, love — we've done plenty for today, "
-                "and your stories will keep. Go enjoy your evening. (Daily limit "
-                "reached; it resets at midnight UTC.)"
+                "Let's pick this up tomorrow — we've covered a lot today, and your "
+                "stories will keep. (Daily chat limit reached; it resets at "
+                "midnight UTC.)"
             ),
         }
 
@@ -154,7 +155,7 @@ def chat(user_id: CurrentUserId, body: ChatRequest) -> dict:
     convo = [{"role": m.role, "content": m.content.strip()[:MAX_CONTENT_CHARS]} for m in turns]
 
     parsed = _load_parsed(client, user_id)
-    system = f"{ENRICH_SYSTEM_PROMPT_V1}\n\nCURRENT PROFILE (JSON):\n{json.dumps(parsed)}"
+    system = f"{ENRICH_SYSTEM_PROMPT_V2}\n\nCURRENT PROFILE (JSON):\n{json.dumps(parsed)}"
 
     data, usage = run_json_chat(system, convo, max_tokens=800)
     log_call(client, user_id, "enrich", usage)

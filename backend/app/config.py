@@ -21,6 +21,9 @@ class Settings(BaseSettings):
 
     # --- Guardrails ---
     per_user_daily_llm_cap: int = 25
+    # Coach chat turns are very cheap (~0.6¢ each); this cap only deters abuse,
+    # so it's generous and counts ONLY enrich turns (one user message = one turn).
+    enrich_daily_turn_cap: int = 50
 
     # --- CORS: comma-separated list of allowed frontend origins ---
     cors_origins: str = "http://localhost:3000"

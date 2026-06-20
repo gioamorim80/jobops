@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-06-20 — M2.5/M2 refinements: coach tone, chat cap fix, tailoring labels
+- **Coach tone (M2.5):** recalibrated the system prompt to v2 — "a warm friend, in
+  a professional setting": composed, not over-familiar. Refusals open gently
+  ("Well —" / "Ah, I wish I could —"), never "Ha"; no terms of endearment and no
+  references to drinks/going out (removed the caipirinha example and the "love"
+  in the limit message). Still firmly in-scope and no-fabrication.
+- **Coach rate-limit fix (M2.5):** the chat cap now counts ONLY this user's
+  `enrich` turns (one user message = exactly one turn) instead of the shared
+  all-actions total, and is generous (`ENRICH_DAILY_TURN_CAP`, default 50) since
+  turns are ~0.6¢. A normal multi-turn conversation no longer trips it; the
+  in-voice "let's pick this up tomorrow" shows only at the real cap.
+  (`count_calls_today` gained an optional `action` filter.)
+- **Tailoring output (M2):** renamed "Tailored bullets" → "Suggested changes to
+  your résumé", and each suggestion now shows WHERE it applies — the real role
+  (title + employer/dates) and section it belongs under (e.g. "Senior Engineer,
+  Acme (2021–2024) — Experience"), drawn from the user's real résumé, never
+  invented. Kept the original → suggested → why structure (added a `where` field
+  to the Tailor output, the bullet model, and both result views).
+- No RLS/auth/isolation change, no migration. `ENRICH_DAILY_TURN_CAP` is a new
+  optional setting (defaults to 50). 16 backend tests + build/lint/pre-commit green.
+
 ## 2026-06-20 — M2.5: conversational profile-enrichment coach
 - **New feature:** a warm chat ("Coach", reachable from the nav) where a logged-in
   user enriches their profile with TRUE context the résumé missed — stories of

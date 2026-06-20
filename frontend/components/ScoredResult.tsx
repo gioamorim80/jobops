@@ -60,13 +60,14 @@ export function ScoredResult({
       </div>
 
       <div className="card">
-        <div className="card-title">Tailored bullets</div>
+        <div className="card-title">Suggested changes to your résumé</div>
         {bullets.length === 0 && (
-          <p className="faint">No bullets were saved.</p>
+          <p className="faint">No suggestions were saved.</p>
         )}
         {bullets.map((b, i) => (
           <div key={i} className="bullet">
-            {b.original && <p className="orig">From: {b.original}</p>}
+            {b.where && <p className="where">{b.where}</p>}
+            {b.original && <p className="orig">Currently: {b.original}</p>}
             <p style={{ margin: 0 }}>{b.tailored}</p>
             {b.why && <p className="why">Why: {b.why}</p>}
           </div>

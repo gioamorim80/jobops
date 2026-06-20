@@ -41,6 +41,7 @@ class TailoredBullet(BaseModel):
     original: str = ""
     tailored: str = ""
     why: str = ""
+    where: str = ""  # which real role/section of the résumé this edit applies to
 
 
 class ApproveRequest(BaseModel):
@@ -84,6 +85,7 @@ def _normalize_tailor(data: dict) -> dict:
                     "original": str(item.get("original") or ""),
                     "tailored": str(item.get("tailored") or ""),
                     "why": str(item.get("why") or ""),
+                    "where": str(item.get("where") or ""),
                 }
             )
     return {
