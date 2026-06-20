@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-06-20 — Post-login routing by profile state (frontend only)
+- The magic-link callback now routes by the authenticated user's own profile
+  state instead of always landing on /dashboard: no completed profile yet goes
+  to /onboarding, and a completed profile goes to the Home hub (/home). An
+  explicit `next` deep link is still honored. Reads only the caller's own profile
+  row (RLS-scoped).
+- Middleware: an already-signed-in user hitting /login now goes to /home (which
+  itself funnels not-yet-onboarded users to onboarding) instead of /dashboard.
+- Confirmed the logged-in JobOps logo already routes to /home. /dashboard stays
+  reachable via its nav link as the detailed profile + history view.
+- Frontend only; no auth/RLS/backend logic changes beyond redirect targets.
+
 ## 2026-06-20 — Writing-style rule + README rewrite (docs only)
 - Added a "Writing style for docs & UI copy" section to CLAUDE.md so it applies
   to all future docs and UI copy: write plainly, no em-dash-plus-fragment

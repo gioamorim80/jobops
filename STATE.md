@@ -33,6 +33,13 @@ M0, M1, M2, and M2.5 are built, deployed, and live. M3–M6 are planned (see
 - No migration, no new env var. Scoring/tailoring logic+format, auth, RLS, and
   agent behavior unchanged; per-user isolation intact.
 
+## Post-login routing by profile state (2026-06-20, frontend only)
+- Magic-link callback routes by the user's own profile state: no completed
+  profile to /onboarding, completed profile to /home (an explicit `next` is still
+  honored). Middleware sends an already-signed-in user from /login to /home.
+- Logged-in logo already points to /home; /dashboard stays the detailed view via
+  its nav link. No auth/RLS/backend logic change beyond redirect targets.
+
 ## Writing-style rule + README rewrite (2026-06-20, docs only)
 - Added a durable "Writing style for docs & UI copy" section to CLAUDE.md (plain,
   natural copy; no em-dash fragments or emphasis taglines; "the user/users" in

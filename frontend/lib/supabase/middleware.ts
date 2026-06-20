@@ -48,8 +48,10 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && pathname === "/login") {
+    // Already signed in: send to the Home hub, which itself routes users who
+    // haven't completed onboarding to the onboarding flow.
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/home";
     return NextResponse.redirect(url);
   }
 
