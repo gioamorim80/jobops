@@ -40,6 +40,13 @@ body {
   margin: 0;
 }
 
+/* Master type + spacing scale. Almost everything is sized in rem, so this single
+   value scales the whole system together (hierarchy preserved). 87.5% of the
+   16px default = 14px base on desktop; mobile drops it further (see media query). */
+html {
+  font-size: 87.5%;
+}
+
 body {
   font-family:
     var(--font-sans),
@@ -52,7 +59,7 @@ body {
     sans-serif;
   color: var(--text);
   line-height: 1.65;
-  font-size: 16px;
+  font-size: 1rem;
   background-color: var(--bg);
   background-image: radial-gradient(
     1100px 520px at 50% -260px,
@@ -126,17 +133,17 @@ p {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1.75rem;
+  padding: 1.6rem; /* internal padding: a touch less bulk inside blocks */
   box-shadow: var(--shadow);
 }
 .card + .card {
-  margin-top: 1.5rem;
+  margin-top: 1.65rem; /* keep generous breathing room between blocks */
 }
 .card-title {
   font-family: var(--font-display), Georgia, serif;
   font-size: 1.15rem;
   font-weight: 400;
-  margin-bottom: 1.1rem;
+  margin-bottom: 0.9rem;
 }
 
 /* buttons */
@@ -149,7 +156,7 @@ p {
   font-size: 0.95rem;
   font-weight: 500;
   letter-spacing: 0.01em;
-  padding: 0.7rem 1.4rem;
+  padding: 0.6rem 1.25rem;
   border-radius: var(--radius-pill);
   border: 1px solid transparent;
   cursor: pointer;
@@ -221,7 +228,7 @@ p {
   background: var(--surface-alt);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  padding: 0.7rem 0.85rem;
+  padding: 0.6rem 0.8rem;
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease;
@@ -455,11 +462,11 @@ input[type="range"] {
 
 /* hero (landing) — airy, restrained */
 .hero {
-  padding: clamp(3.5rem, 12vh, 8rem) 0 3rem;
+  padding: clamp(2.75rem, 9vh, 6rem) 0 2.5rem;
   max-width: 40rem;
 }
 .hero p.lead {
-  font-size: 1.08rem;
+  font-size: 1.05rem;
   color: var(--text-muted);
 }
 .hero-actions {
@@ -486,7 +493,7 @@ input[type="range"] {
   margin-left: 0.5rem;
   vertical-align: middle;
   font-family: var(--font-sans), system-ui, sans-serif;
-  font-size: 0.68rem;
+  font-size: 0.74rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -798,10 +805,16 @@ input[type="range"] {
   border-radius: 4px;
 }
 
-@media (max-width: 560px) {
-  body {
-    font-size: 15.5px;
+/* Mobile gets a distinctly smaller base scale (81.25% of 16px = 13px), so the
+   hero and cards don't feel oversized on a ~390px phone. Line-height and section
+   margins stay comfortable; only the base size and internal padding tighten. */
+@media (max-width: 640px) {
+  html {
+    font-size: 81.25%;
   }
+}
+
+@media (max-width: 560px) {
   .container {
     padding: 0 1.15rem;
   }

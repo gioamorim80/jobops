@@ -33,6 +33,14 @@ M0, M1, M2, and M2.5 are built, deployed, and live. M3–M6 are planned (see
 - No migration, no new env var. Scoring/tailoring logic+format, auth, RLS, and
   agent behavior unchanged; per-user isolation intact.
 
+## Design-scale refinement (2026-06-20, visual only)
+- Master root font-size scales the whole rem-based system down: desktop
+  `html { font-size: 87.5% }` (14px base), mobile ≤640px `81.25%` (13px). Body is
+  now 1rem (was fixed 16px). Internal padding trimmed slightly (cards/buttons/
+  inputs) while section margins stay generous. Fonts/colors/layout/logic unchanged.
+- Tunable knobs: the two `html { font-size: … }` values (desktop / mobile) are the
+  master levers; card padding 1.6rem, card gap 1.65rem, hero padding clamp.
+
 ## Post-login routing by profile state (2026-06-20, frontend only)
 - Magic-link callback routes by the user's own profile state: no completed
   profile to /onboarding, completed profile to /home (an explicit `next` is still

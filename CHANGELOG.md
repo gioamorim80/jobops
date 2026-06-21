@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 2026-06-20 — Design-scale refinement (visual only, globals.css)
+- Reduced the overall type and spacing scale so the composition at 100% zoom
+  feels the way it used to at about 80%. Implemented with a master root font-size
+  (`html { font-size: 87.5% }` = 14px base on desktop) so the whole rem-based
+  system scales down together with hierarchy intact; body switched from a fixed
+  16px to 1rem.
+- Reduced internal padding a little while keeping section margins generous: card
+  padding 1.75rem → 1.6rem, card-title margin 1.1rem → 0.9rem, button padding
+  0.7/1.4rem → 0.6/1.25rem, input padding 0.7/0.85rem → 0.6/0.8rem; card-to-card
+  gap kept generous at 1.65rem. Hero top padding trimmed
+  (clamp 3.5/12vh/8rem → 2.75/9vh/6rem), hero lead 1.08rem → 1.05rem.
+- Mobile (≤640px) now uses a distinctly smaller base (`html { font-size: 81.25% }`
+  = 13px), replacing the old fixed 15.5px body override; line-height and section
+  spacing stay comfortable. Bumped the "Coming soon" pill 0.68rem → 0.74rem so it
+  stays legible at the smaller base.
+- Fonts, colors, layout, content, and logic unchanged.
+
 ## 2026-06-20 — Post-login routing by profile state (frontend only)
 - The magic-link callback now routes by the authenticated user's own profile
   state instead of always landing on /dashboard: no completed profile yet goes
