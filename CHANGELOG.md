@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-06-20 — M2.6: custom domain, branded email, design polish
+- Custom domain myjobops.app is live on Vercel and serves the app. README now
+  links it as the canonical URL.
+- Branded transactional email through Resend: magic-link login emails are sent
+  from the domain, with DKIM and SPF verified. (Recurring digests remain planned;
+  this covers auth email only.)
+- Supabase auth redirect URLs and the Railway CORS allowlist were updated for the
+  new domain.
+- Marked the responsive design refinement pass (smaller type and spacing scale,
+  comfortable mobile gutters, header gutter fix) as part of this milestone. These
+  were visual-only changes already shipped in the entries below.
+- Docs: ROADMAP adds M2.6 as DONE; M3–M6 stay planned.
+
 ## 2026-06-20 — Mobile header gutter fix (visual only)
 - The mobile `.app-header-inner` override set `padding: 0.5rem 0`, which zeroed
   the horizontal padding and overrode the `.container` gutter, pinning the

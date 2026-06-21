@@ -6,9 +6,9 @@ experience, suggests resume edits tailored to each posting, and includes a
 profile-enrichment chat. Everything it produces is grounded only in what the
 user has actually done, and nothing is fabricated.
 
-JobOps is a live, deployed product. The frontend runs on Vercel, the backend on
-Railway, with Supabase and Postgres for data and the Anthropic API as the agent
-brain. The public link is omitted here for now. It was built incrementally with
+JobOps is a live, deployed product, available at https://myjobops.app. The
+frontend runs on Vercel, the backend on Railway, with Supabase and Postgres for
+data and the Anthropic API as the agent brain. It was built incrementally with
 Claude Code, one milestone at a time.
 
 ## What it does today

@@ -1,8 +1,17 @@
 # STATE — where the build is
 
-## Current position: M0–M2.5 done & deployed. Next up: M3 (job-source adapters).
-M0, M1, M2, and M2.5 are built, deployed, and live. M3–M6 are planned (see
+## Current position: M0–M2.6 done & deployed. Next up: M3 (job-source adapters).
+M0, M1, M2, M2.5, and M2.6 are built, deployed, and live. M3–M6 are planned (see
 `ROADMAP.md`). Detailed per-milestone notes below; newest refinements first.
+
+## M2.6 — Custom domain, branded email, design polish ✅ (2026-06-20)
+- Custom domain myjobops.app is live on Vercel (canonical URL, linked in README).
+- Branded transactional email through Resend: magic-link emails send from the
+  domain with DKIM and SPF verified (auth email only; digests remain planned).
+- Supabase auth redirect URLs and the Railway CORS allowlist updated for the
+  domain.
+- Responsive design refinement (smaller type and spacing scale, mobile gutters,
+  header gutter fix) folded in. Visual-only; details in the entries below.
 
 ### M2 — what was built (the on-demand paste-a-link flow)
 - **Migration** `supabase/migrations/0002_m2_tailorings_usage.sql`: `tailorings`

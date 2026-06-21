@@ -62,6 +62,21 @@ conversationally.
 change, and see it reflected in their profile; off-topic requests are declined
 in-voice.
 
+## M2.6 — Custom domain, branded email, and design polish ✅ DONE
+Goal: a production-grade public presence on a custom domain, with branded auth
+email and a refined responsive design.
+- Custom domain myjobops.app is live on Vercel and serves the app.
+- Branded transactional email through Resend: magic-link login emails are sent
+  from the domain, with DKIM and SPF verified.
+- Supabase auth redirect URLs and the Railway CORS allowlist were updated for the
+  new domain.
+- Responsive design refinement pass: reduced the overall type and spacing scale
+  and added comfortable mobile gutters, so the layout reads well from phone to
+  desktop. Visual only, with no change to features or logic.
+**Done:** users reach the app at myjobops.app, receive a branded magic-link email
+from the domain, sign in successfully, and the layout is comfortable at phone,
+tablet, and desktop widths.
+
 ## M3 — Job-source adapters + dedupe + funnel stage 1 ⬜ PLANNED
 Goal: a growing pool of real jobs, fetched legitimately.
 - Adapter interface + 2–3 sources from the allowlist (`docs/JOB_SOURCES.md`).
