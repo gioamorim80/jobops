@@ -41,10 +41,12 @@ body {
 }
 
 /* Master type + spacing scale. Almost everything is sized in rem, so this single
-   value scales the whole system together (hierarchy preserved). 87.5% of the
-   16px default = 14px base on desktop; mobile drops it further (see media query). */
+   value scales the whole system together (hierarchy preserved). 80% of the 16px
+   default = 12.8px base on desktop; mobile drops it a touch more (see media
+   query). The mobile horizontal gutter is set in px so it stays comfortable
+   regardless of this scale. */
 html {
-  font-size: 87.5%;
+  font-size: 80%;
 }
 
 body {
@@ -805,19 +807,19 @@ input[type="range"] {
   border-radius: 4px;
 }
 
-/* Mobile gets a distinctly smaller base scale (81.25% of 16px = 13px), so the
-   hero and cards don't feel oversized on a ~390px phone. Line-height and section
-   margins stay comfortable; only the base size and internal padding tighten. */
+/* Mobile gets a slightly smaller base scale (77.5% of 16px = 12.4px) plus a
+   comfortable fixed left/right gutter, so the hero, body copy, and cards have
+   clear breathing room on both sides at ~390px and never run edge-to-edge. */
 @media (max-width: 640px) {
   html {
-    font-size: 81.25%;
+    font-size: 77.5%;
+  }
+  .container {
+    padding: 0 22px; /* fixed gutter in px so it doesn't shrink with the scale */
   }
 }
 
 @media (max-width: 560px) {
-  .container {
-    padding: 0 1.15rem;
-  }
   .card {
     padding: 1.3rem;
   }

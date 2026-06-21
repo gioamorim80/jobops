@@ -33,6 +33,13 @@ M0, M1, M2, and M2.5 are built, deployed, and live. M3–M6 are planned (see
 - No migration, no new env var. Scoring/tailoring logic+format, auth, RLS, and
   agent behavior unchanged; per-user isolation intact.
 
+## Mobile gutters + smaller desktop scale (2026-06-20, visual only)
+- Fixed mobile gutter: `.container { padding: 0 22px }` at ≤640px (px, so it
+  doesn't shrink with the type scale) — clear left/right breathing room at ~390px.
+- Desktop master scale `html { font-size: 80% }` (12.8px, ~9% smaller than the
+  prior 14px); mobile ≤640px `77.5%` (12.4px). Knobs to tune: the two
+  `html { font-size }` values and the `22px` mobile gutter.
+
 ## Design-scale refinement (2026-06-20, visual only)
 - Master root font-size scales the whole rem-based system down: desktop
   `html { font-size: 87.5% }` (14px base), mobile ≤640px `81.25%` (13px). Body is

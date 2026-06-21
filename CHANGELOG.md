@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-06-20 — Mobile gutters + smaller desktop scale (visual only)
+- Mobile horizontal gutter: the page container now uses a fixed `22px` left/right
+  padding at ≤640px (in px so it doesn't shrink with the type scale), replacing
+  the old `1.15rem` that had collapsed to ~15px. Applies to the hero, feature
+  cards, and every section via `.container`, so nothing runs edge-to-edge on a
+  ~390px phone.
+- Desktop scale reduced further: master root `html { font-size: 87.5% → 80% }`
+  (14px → 12.8px base, about 9% smaller), hierarchy intact via the rem system.
+- Mobile base eased from 81.25% (13px) to 77.5% (12.4px) so it stays just under
+  the desktop base (no inversion) while the new gutter does the breathing-room work.
+- Fonts, colors, layout, content, and logic unchanged.
+
 ## 2026-06-20 — Design-scale refinement (visual only, globals.css)
 - Reduced the overall type and spacing scale so the composition at 100% zoom
   feels the way it used to at about 80%. Implemented with a master root font-size
