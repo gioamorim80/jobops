@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-06-20 — Mobile header gutter fix (visual only)
+- The mobile `.app-header-inner` override set `padding: 0.5rem 0`, which zeroed
+  the horizontal padding and overrode the `.container` gutter, pinning the
+  "JobOps" logo to the left edge and clipping "Sign in" on the right. Changed it
+  to `padding: 0.5rem 22px` so the header matches the body container's gutter at
+  phone widths. Logo and Sign in now sit clearly inside the screen on both edges.
+
 ## 2026-06-20 — Mobile gutters + smaller desktop scale (visual only)
 - Mobile horizontal gutter: the page container now uses a fixed `22px` left/right
   padding at ≤640px (in px so it doesn't shrink with the type scale), replacing

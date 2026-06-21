@@ -823,12 +823,14 @@ input[type="range"] {
   .card {
     padding: 1.3rem;
   }
-  /* let the nav drop to its own row so 4 items stay tidy on phones */
+  /* let the nav drop to its own row so 4 items stay tidy on phones. Keep the
+     22px horizontal gutter from .container (this override would otherwise zero
+     it, pinning the logo to the left edge and clipping "Sign in" on the right). */
   .app-header-inner {
     flex-wrap: wrap;
     height: auto;
     min-height: 56px;
-    padding: 0.5rem 0;
+    padding: 0.5rem 22px;
     row-gap: 0.4rem;
   }
   .app-nav {
