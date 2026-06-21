@@ -44,7 +44,7 @@ export default async function HomePage() {
           <div className="card-title">Score a new job</div>
           <p className="muted">
             Paste a link or the posting text for an honest fit score and
-            suggested résumé edits.
+            suggested resume edits.
           </p>
         </Link>
         <Link href="/dashboard" className="card launcher-card">
@@ -57,7 +57,7 @@ export default async function HomePage() {
         <Link href="/coach" className="card launcher-card">
           <div className="card-title">Chat with the Coach</div>
           <p className="muted">
-            Add the true context your résumé missed. Warm and in-scope — nothing
+            Add the true context your resume missed. Warm and in-scope — nothing
             saved unless you confirm.
           </p>
         </Link>

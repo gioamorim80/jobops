@@ -203,9 +203,9 @@ export default function ScorePage() {
         )}
 
         <div className="card">
-          <div className="card-title">Suggested changes to your résumé</div>
+          <div className="card-title">Suggested changes to your resume</div>
           <p className="hint" style={{ marginTop: 0, marginBottom: "1rem" }}>
-            Each one shows where on your résumé it applies. Reordered and
+            Each one shows where on your resume it applies. Reordered and
             rephrased from your real experience — never invented. Edit any of
             them, then approve.
           </p>

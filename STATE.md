@@ -81,7 +81,7 @@ M0, M1, M2, M2.5, and M2.6 are built, deployed, and live. M3–M6 are planned (s
 
 ## Landing + Home launcher (2026-06-20, frontend only)
 - Landing: dropped the standalone "No spray-and-pray." section; feature tiles are
-  now a 2×2 (stacks on mobile) — renamed "Suggested changes to your résumé",
+  now a 2×2 (stacks on mobile) — renamed "Suggested changes to your resume",
   added an "An honest coach" tile (live), and the email-alerts tile is labeled
   "Coming soon" (folds in the spray-and-pray line; honest as roadmap).
 - New logged-in `/home` light launcher (action cards → Score / Dashboard / Coach
@@ -93,13 +93,13 @@ M0, M1, M2, M2.5, and M2.6 are built, deployed, and live. M3–M6 are planned (s
   ("Well —"/"Ah, I wish I could —", never "Ha"), no endearments or drink refs.
 - Coach cap fixed: counts only the user's own `enrich` turns (1 message = 1 turn),
   generous default 50 (`ENRICH_DAILY_TURN_CAP`); normal conversations don't trip it.
-- Tailoring section renamed "Suggested changes to your résumé"; each suggestion
+- Tailoring section renamed "Suggested changes to your resume"; each suggestion
   now shows WHERE it applies (real role + section), keeping original→suggested→why.
 - No RLS/auth/isolation change, no migration; `ENRICH_DAILY_TURN_CAP` optional (50).
 
 ## M2.5 — Conversational profile-enrichment coach ✅ (code complete)
 - New "Coach" chat (nav → `/coach`): a warm Trancoso-voiced agent that helps the
-  user add TRUE résumé-missed context and proposes structured profile changes the
+  user add TRUE resume-missed context and proposes structured profile changes the
   user must confirm. Backend `/enrich/chat` + `/enrich/apply`; confirmed changes
   merge into `profiles.parsed` (attribution_notes included).
 - Guardrails: scope fence (off-topic → warm redirect), no fabrication + human
@@ -173,11 +173,11 @@ in production. Next.js later patched to 15.5.19 (security fix).
   ivory + soft lavender base, sparing forest-green accent, Fraunces serif +
   Inter, lighter type, airy spacing, responsive, accessible focus). Applied
   across all pages.
-- **Profile editing UX:** editing a field no longer requires a résumé re-upload.
-  Settings is now a full Profile & settings editor; résumé replacement is a
+- **Profile editing UX:** editing a field no longer requires a resume re-upload.
+  Settings is now a full Profile & settings editor; resume replacement is a
   separate optional action. Added additive backend endpoint
   `POST /onboarding/profile` (user_id from verified JWT only; never touches the
-  résumé columns or `onboarding_complete`).
+  resume columns or `onboarding_complete`).
 - **No** schema change, **no** new env var, and **no** change to auth / RLS /
   storage policies / the onboarding agent / existing API contracts / env handling.
 

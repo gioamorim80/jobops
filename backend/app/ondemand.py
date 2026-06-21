@@ -41,7 +41,7 @@ class TailoredBullet(BaseModel):
     original: str = ""
     tailored: str = ""
     why: str = ""
-    where: str = ""  # which real role/section of the résumé this edit applies to
+    where: str = ""  # which real role/section of the resume this edit applies to
 
 
 class ApproveRequest(BaseModel):

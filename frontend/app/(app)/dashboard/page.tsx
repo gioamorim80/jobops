@@ -104,7 +104,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="card">
-        <div className="card-title">Résumé</div>
+        <div className="card-title">Resume</div>
         <p className="muted" style={{ margin: 0 }}>
           On file: <span className="file-name">{resumeName}</span>
         </p>
@@ -116,7 +116,7 @@ export default async function DashboardPage() {
           className="btn btn-ghost btn-sm"
           style={{ marginTop: "0.5rem" }}
         >
-          Replace résumé
+          Replace resume
         </Link>
       </div>
 

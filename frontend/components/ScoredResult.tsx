@@ -60,7 +60,7 @@ export function ScoredResult({
       </div>
 
       <div className="card">
-        <div className="card-title">Suggested changes to your résumé</div>
+        <div className="card-title">Suggested changes to your resume</div>
         {bullets.length === 0 && (
           <p className="faint">No suggestions were saved.</p>
         )}

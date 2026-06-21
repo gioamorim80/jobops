@@ -17,7 +17,7 @@ const WELCOME: ChatMessage = {
   content:
     "Oi! I'm your coach. Think of me as the friend who remembers the impressive " +
     "thing you actually built and won't let you undersell it. Tell me about a " +
-    "project you're proud of — or anything your résumé didn't quite capture — and " +
+    "project you're proud of — or anything your resume didn't quite capture — and " +
     "we'll get the true parts into your profile. Where should we start?",
 };
 
@@ -181,7 +181,7 @@ export default function CoachPage() {
     <div style={{ maxWidth: 720 }}>
       <h1>Coach</h1>
       <p className="muted">
-        A warm place to add the true context your résumé missed — stories of
+        A warm place to add the true context your resume missed — stories of
         what you built, who really owned what, the title the timeline flattened.
         We only save what you confirm.
       </p>

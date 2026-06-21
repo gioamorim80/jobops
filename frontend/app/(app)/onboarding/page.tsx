@@ -147,7 +147,7 @@ export default function OnboardingPage() {
     <div style={{ maxWidth: 640 }}>
       <h1>Set up your profile</h1>
       <p className="muted">
-        Upload your résumé and confirm a few details. We only use what&apos;s
+        Upload your resume and confirm a few details. We only use what&apos;s
         actually in it — nothing is invented. You can edit any field later from
         Settings without re-uploading.
       </p>

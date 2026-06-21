@@ -156,11 +156,11 @@ export default function SettingsPage() {
         <div>
           <h1 style={{ marginBottom: "0.25rem" }}>Profile &amp; settings</h1>
           <p className="muted" style={{ margin: 0 }}>
-            Edit your details directly — no need to re-upload your résumé.
+            Edit your details directly — no need to re-upload your resume.
           </p>
         </div>
         <Link href="/onboarding" className="btn btn-ghost btn-sm">
-          Replace résumé
+          Replace resume
         </Link>
       </div>
 

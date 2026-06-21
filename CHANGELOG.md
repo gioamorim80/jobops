@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-06-20 — Spell "resume" without the accent everywhere
+- Swept all "résumé" to "resume" across the whole repo: frontend UI copy and
+  card titles (for example "Suggested changes to your resume", "Replace resume",
+  the "Resume" card), backend agent prompts and comments, types, and the docs.
+  Capitalized "Résumé" became "Resume". Spelling is now consistent with the
+  CLAUDE.md style rule. Copy/spelling only, no logic or behavior change; backend
+  tests and the frontend build pass.
+
 ## 2026-06-20 — M2.6: custom domain, branded email, design polish
 - Custom domain myjobops.app is live on Vercel and serves the app. README now
   links it as the canonical URL.
@@ -69,8 +77,8 @@
   adjective next to itself, plain "resume" with no accents, and no hype or filler.
 - Rewrote README.md to follow the rule: removed every em-dash fragment and
   emphasis tagline, switched descriptive copy to "the user/users", fixed the
-  doubled "honest" in the opening paragraph, and changed all "résumé" to "resume".
-  Factual content (current features vs. roadmap) is unchanged.
+  doubled "honest" in the opening paragraph, and standardized the resume spelling
+  to drop the accent. Factual content (current features vs. roadmap) is unchanged.
 - Relabeled the `prompts/` entry in the repo map as a historical, point-in-time
   record that is not maintained or complete, and noted STATE.md and CHANGELOG.md
   as the current source of truth.
@@ -94,7 +102,7 @@
 - **Landing:** removed the standalone "No spray-and-pray." section (the hero is
   the single intro). Reworked the feature tiles into a clean 2×2 (stacks on
   mobile): renamed "Tailored, truthful bullets" → "Suggested changes to your
-  résumé" to match the app; added an "An honest coach" tile (live); and reworded
+  resume" to match the app; added an "An honest coach" tile (live); and reworded
   the email-alerts tile as upcoming with a "Coming soon" label, folding in the
   spray-and-pray line — honest as roadmap, not a current capability.
 - **Logged-in Home:** new `/home` light launcher — a warm "what would you like
@@ -119,9 +127,9 @@
   in-voice "let's pick this up tomorrow" shows only at the real cap.
   (`count_calls_today` gained an optional `action` filter.)
 - **Tailoring output (M2):** renamed "Tailored bullets" → "Suggested changes to
-  your résumé", and each suggestion now shows WHERE it applies — the real role
+  your resume", and each suggestion now shows WHERE it applies — the real role
   (title + employer/dates) and section it belongs under (e.g. "Senior Engineer,
-  Acme (2021–2024) — Experience"), drawn from the user's real résumé, never
+  Acme (2021–2024) — Experience"), drawn from the user's real resume, never
   invented. Kept the original → suggested → why structure (added a `where` field
   to the Tailor output, the bullet model, and both result views).
 - No RLS/auth/isolation change, no migration. `ENRICH_DAILY_TURN_CAP` is a new
@@ -129,7 +137,7 @@
 
 ## 2026-06-20 — M2.5: conversational profile-enrichment coach
 - **New feature:** a warm chat ("Coach", reachable from the nav) where a logged-in
-  user enriches their profile with TRUE context the résumé missed — stories of
+  user enriches their profile with TRUE context the resume missed — stories of
   what they built, corrected project attribution, fixed title/timelines, real
   skills/domains. The agent has the user's profile as context and asks targeted
   questions, then proposes a structured change the user must confirm.
@@ -277,7 +285,7 @@
 - **UX fix — edit profile without re-uploading:** Settings is now a full
   Profile & settings editor (name, target roles, seniority, locations, remote
   pref, skills, domains + alert frequency + score threshold). Dashboard "Edit
-  profile" → Settings; résumé replacement is a separate, optional action.
+  profile" → Settings; resume replacement is a separate, optional action.
 - **Backend (additive only):** new `POST /onboarding/profile` updates the
   current user's profile fields + preferences and never touches
   `raw_resume_text` / `resume_file_path` / `onboarding_complete`. user_id comes

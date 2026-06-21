@@ -17,14 +17,14 @@ Goal: skeleton that deploys and proves the agent brain works end to end.
 Goal: a new user signs up and is onboarded into a structured profile.
 - Supabase magic-link auth in the frontend.
 - `profiles`, `preferences` tables + RLS (see `docs/DATA_MODEL.md`).
-- Résumé upload to a private Supabase storage bucket; onboarding agent
+- Resume upload to a private Supabase storage bucket; onboarding agent
   (`docs/agents/ONBOARDING.md`) parses it, asks a couple of gap questions,
   confirms, and writes the profile (extraction only — never invents).
 - Settings screen for alert frequency + score threshold (stored preferences).
 **Done:** two different accounts each complete onboarding and see only their own
 profile (RLS verified).
 
-## M2 — On-demand: paste a link → score + suggested résumé changes ✅ DONE ← MVP wedge
+## M2 — On-demand: paste a link → score + suggested resume changes ✅ DONE ← MVP wedge
 Goal: the instantly-useful single action.
 - Endpoint accepts a URL or pasted text; single readability fetch with a
   "paste the text" fallback when a link is blocked/thin (no host hammering).
@@ -32,7 +32,7 @@ Goal: the instantly-useful single action.
   against the user's stored profile.
 - UI shows: a **0–100 fit score with a qualitative band** (Strong / Solid /
   Stretch / Likely skip) and decision (APPLY / STRETCH / SKIP); cleared
-  requirements; honest gaps; **"Suggested changes to your résumé"** — each
+  requirements; honest gaps; **"Suggested changes to your resume"** — each
   showing *where* it applies (role + section), as original → suggestion → why;
   match analysis. The user edits and explicitly approves; results save to
   `tailorings` with a per-user **history**.
@@ -42,11 +42,11 @@ Goal: the instantly-useful single action.
 - **Cost guardrails:** per-user daily caps (a friendly limit, never a crash) and
   per-call **usage logging** (`usage_log`).
 **Done:** a user pastes a real posting and gets an accurate, banded fit + honest
-suggested résumé changes they approve, with no fabricated content; repeat scores
+suggested resume changes they approve, with no fabricated content; repeat scores
 are stable and cached; everything is per-user isolated.
 
 ## M2.5 — Profile-enrichment Coach ✅ DONE
-Goal: let a user enrich their profile with true context their résumé missed,
+Goal: let a user enrich their profile with true context their resume missed,
 conversationally.
 - A scoped **Coach** chat in the app: warm but professional voice that stays
   strictly on the user's job search and career; off-topic asks get a gentle,
@@ -95,7 +95,7 @@ shows each user only their own.
 ## M5 — Scheduled digests + email + guardrails ⬜ PLANNED
 Goal: recurring alerts, safely. **Decision: digests and saved links surface the
 SCORE ONLY** — each match shows its fit score/decision with an on-demand
-**"Tailor my résumé for this"** button in the app. Tailoring is never run
+**"Tailor my resume for this"** button in the app. Tailoring is never run
 automatically; the user triggers it when they choose.
 - Scheduler runs the loop on each user's frequency (off / daily / weekly).
 - Digest agent (`docs/agents/DIGEST.md`) composes a score-only summary; Resend
@@ -108,5 +108,5 @@ on schedule, can click through to tailor on demand, and exceeding a cap is
 blocked gracefully.
 
 ## M6 — Optional capstone ⬜ PLANNED
-Pick any: Telegram digest channel; tailored-résumé document export (docx/PDF);
+Pick any: Telegram digest channel; tailored-resume document export (docx/PDF);
 referral-network features; share-link hardening + onboarding polish.

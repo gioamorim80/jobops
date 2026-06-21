@@ -20,7 +20,7 @@ export default function Home() {
           <p className="lead">
             JobOps reads each posting in full and reasons against your real
             experience — purpose-built analysis, not keyword matching — to score
-            your fit and tailor every résumé bullet to that one role. Grounded
+            your fit and tailor every resume bullet to that one role. Grounded
             only in what you&apos;ve actually done.
           </p>
           <div className="hero-actions">
@@ -39,7 +39,7 @@ export default function Home() {
             </p>
           </div>
           <div className="card">
-            <div className="card-title">Suggested changes to your résumé</div>
+            <div className="card-title">Suggested changes to your resume</div>
             <p className="muted" style={{ margin: 0 }}>
               Edits tailored to the posting, each showing where it applies. It
               reorders and rephrases what&apos;s true — never invents titles,
@@ -49,7 +49,7 @@ export default function Home() {
           <div className="card">
             <div className="card-title">An honest coach</div>
             <p className="muted" style={{ margin: 0 }}>
-              A warm, in-scope chat to add the true context your résumé missed —
+              A warm, in-scope chat to add the true context your resume missed —
               what you built, who really owned what, a title the timeline
               flattened. Nothing&apos;s saved unless you confirm.
             </p>
@@ -61,7 +61,7 @@ export default function Home() {
             </div>
             <p className="muted" style={{ margin: 0 }}>
               Soon: opt into daily or weekly emails of new roles scored against
-              your profile. It won&apos;t fling your résumé at jobs you&apos;d
+              your profile. It won&apos;t fling your resume at jobs you&apos;d
               never want — only honest fits.
             </p>
           </div>
