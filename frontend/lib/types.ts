@@ -106,5 +106,6 @@ export interface Tailoring {
   tailored_bullets: TailoredBullet[] | null;
   analysis: string | null;
   approved: boolean;
+  applied_at: string | null;
   created_at: string;
 }

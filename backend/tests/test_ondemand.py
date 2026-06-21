@@ -24,6 +24,14 @@ def test_approve_requires_auth() -> None:
     assert response.status_code == 401
 
 
+def test_applied_requires_auth() -> None:
+    response = client.post(
+        "/ondemand/applied",
+        json={"id": "00000000-0000-0000-0000-000000000000", "applied": True},
+    )
+    assert response.status_code == 401
+
+
 def test_extract_main_text_pulls_article_body() -> None:
     html = """
     <html><head><title>Senior Engineer</title></head>

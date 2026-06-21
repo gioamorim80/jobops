@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { AppliedToggle } from "@/components/AppliedToggle";
 import { DeleteTailoringButton } from "@/components/DeleteTailoringButton";
 import { createClient } from "@/lib/supabase/server";
 import type { ParsedProfile, ScoreResult } from "@/lib/types";
@@ -44,7 +45,7 @@ export default async function DashboardPage() {
   // RLS scopes this to the signed-in user's own tailorings only.
   const { data: tailorings } = await supabase
     .from("tailorings")
-    .select("id, source_url, job_text, score, approved, created_at")
+    .select("id, source_url, job_text, score, approved, applied_at, created_at")
     .order("created_at", { ascending: false })
     .limit(20);
 
@@ -148,7 +149,10 @@ export default async function DashboardPage() {
                       </span>
                     </span>
                   </Link>
-                  <DeleteTailoringButton id={t.id} />
+                  <span className="scored-actions">
+                    <AppliedToggle id={t.id} appliedAt={t.applied_at ?? null} />
+                    <DeleteTailoringButton id={t.id} />
+                  </span>
                 </div>
               );
             })}

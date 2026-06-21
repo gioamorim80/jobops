@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-06-21 — Applied marker on scored jobs
+- Schema: migration `0003` adds a nullable `applied_at` (timestamptz) to
+  `tailorings` (null = not applied, a timestamp = applied on that date). No new
+  grants needed; the 0002 table grants and the `tailorings_own_rows` RLS policy
+  already cover the new column.
+- Backend: `POST /ondemand/applied` toggles the marker for one of the current
+  user's tailorings — `applied_at = now()` when marking, null when un-marking.
+  user_id comes from the verified JWT; the write is scoped to the caller's own
+  row, so isolation is preserved.
+- Frontend (Dashboard scored-jobs list): not-applied rows show a "Mark as
+  applied" action; applied rows show an "Applied ✓ <date>" badge with an
+  "Un-mark" action. Score, decision, date, and Delete controls are unchanged.
+  On-brand styling; the row wraps on narrow screens so it stays usable on mobile.
+- Tests: added an auth-gate test for the new endpoint. 23 backend tests pass;
+  frontend build/lint + pre-commit green.
+
 ## 2026-06-20 — Fix Coach 502 on multi-turn (silent JSON-parse crash)
 - Actual cause (confirmed): after a few turns the model replies in plain prose
   without the JSON envelope the Coach expects, and `extract_json_object` raised

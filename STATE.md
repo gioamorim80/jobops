@@ -4,6 +4,14 @@
 M0, M1, M2, M2.5, and M2.6 are built, deployed, and live. M3–M6 are planned (see
 `ROADMAP.md`). Detailed per-milestone notes below; newest refinements first.
 
+## Applied marker on scored jobs (2026-06-21)
+- Migration `0003` adds nullable `applied_at` (timestamptz) to `tailorings`
+  (null = not applied). No new grants needed (0002 grants + RLS cover it).
+- Backend `POST /ondemand/applied` toggles the marker for the caller's own row
+  (now() / null); user_id from the verified JWT, scoped write — isolation intact.
+- Dashboard scored-jobs list: "Mark as applied" → "Applied ✓ <date>" badge with
+  "Un-mark"; score/decision/date/Delete unchanged; rows wrap on mobile.
+
 ## Coach multi-turn 502 fix (2026-06-20)
 - Real cause of the 3rd-turn 502: the model drops the JSON envelope and replies
   in prose as the chat grows, so `extract_json_object` raised HTTPException(502)

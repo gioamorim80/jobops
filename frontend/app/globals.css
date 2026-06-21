@@ -710,6 +710,8 @@ input[type="range"] {
   display: flex;
   align-items: center;
   gap: 0.85rem;
+  row-gap: 0.6rem;
+  flex-wrap: wrap; /* actions wrap below the link on narrow screens */
   padding: 0.85rem 1rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -723,7 +725,7 @@ input[type="range"] {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  flex: 1 1 auto;
+  flex: 1 1 240px;
   min-width: 0;
   color: var(--text);
 }
@@ -745,6 +747,17 @@ input[type="range"] {
   align-items: center;
   gap: 0.75rem;
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.applied {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.applied-badge {
+  background: var(--success-bg);
+  border-color: #cfe2d4;
+  color: #2f5a3f;
 }
 .linklike.danger {
   color: var(--danger);

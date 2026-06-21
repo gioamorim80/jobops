@@ -4,6 +4,7 @@ POST /ondemand/score    accept a job URL or pasted text; fetch+extract if a URL;
                         run the scorer then the tailor against the user's stored
                         profile; save the result to `tailorings` (approved=false).
 POST /ondemand/approve  save the user-edited bullets and mark approved=true.
+POST /ondemand/applied  toggle the "applied" marker (applied_at) on one tailoring.
 
 Security: user_id always comes from the verified JWT (CurrentUserId), never
 request input. Every read/write is scoped to that user's own rows. Per-user
@@ -13,6 +14,7 @@ Resume/profile/job text is sent only to the agent calls and never logged.
 
 import hashlib
 import json
+from datetime import UTC, datetime
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from agents.scorer import SCORER_SYSTEM_PROMPT_V1
@@ -42,6 +44,11 @@ class TailoredBullet(BaseModel):
     tailored: str = ""
     why: str = ""
     where: str = ""  # which real role/section of the resume this edit applies to
+
+
+class AppliedRequest(BaseModel):
+    id: str
+    applied: bool
 
 
 class ApproveRequest(BaseModel):
@@ -316,3 +323,23 @@ def approve_tailoring(user_id: CurrentUserId, body: ApproveRequest) -> dict:
     if not result.data:
         raise HTTPException(status_code=404, detail="Tailoring not found.")
     return {"ok": True}
+
+
+@router.post("/applied")
+def set_applied(user_id: CurrentUserId, body: AppliedRequest) -> dict:
+    """Toggle the applied marker on one of the user's own tailorings: set
+    applied_at = now() when marking applied, or null when un-marking."""
+    client = get_service_client()
+    applied_at = datetime.now(UTC).isoformat() if body.applied else None
+
+    # Scope to the caller's own row (service role bypasses RLS).
+    result = (
+        client.table("tailorings")
+        .update({"applied_at": applied_at})
+        .eq("id", body.id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Tailoring not found.")
+    return {"ok": True, "applied_at": applied_at}
