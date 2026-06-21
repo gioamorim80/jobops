@@ -1,7 +1,8 @@
 # ROADMAP — JobOps milestones
 
 Built one milestone at a time; a milestone is done only when its acceptance
-criteria pass AND it deploys. **M0–M2.5 are done and live; M3–M6 are planned.**
+criteria pass AND it deploys. **M0 through M3 are done; M4 through M6 are
+planned.**
 The on-demand link flow (M2) was sequenced ahead of the automated scanner
 (M3–M5) by design.
 
@@ -77,13 +78,23 @@ email and a refined responsive design.
 from the domain, sign in successfully, and the layout is comfortable at phone,
 tablet, and desktop widths.
 
-## M3 — Job-source adapters + dedupe + funnel stage 1 ⬜ PLANNED
-Goal: a growing pool of real jobs, fetched legitimately.
-- Adapter interface + 2–3 sources from the allowlist (`docs/JOB_SOURCES.md`).
-- Normalize + dedupe into the global `jobs` pool (content hash).
-- Cheap prefilter that ranks jobs against a profile without LLM calls.
-**Done when:** a scheduled/manual fetch populates `jobs`, dedupes correctly, and
-prefilter returns a sensible shortlist for a test profile.
+## M3 — Job-source ingestion + dedupe + funnel stage 1 ✅ DONE
+Goal: a growing pool of real jobs, fetched legitimately, per user.
+- `JobSource` interface + an Adzuna adapter (US), in a registry so adding a source
+  is one line. Strict response validation; a source failure is logged and skipped,
+  never crashing the fetch.
+- Per-user targeted fetch: the query is built from a user's own profile (target
+  roles, location, remote preference), not a wide daily sweep.
+- Normalize + dedupe into the shared `jobs` pool by a unique `content_hash`, so a
+  posting two users both match is stored once and a re-fetch never inserts a dupe.
+- A cheap, deterministic, no-LLM prefilter that returns a generous ranked
+  shortlist (cap ~30) on safe signals (location/remote fit, recency, keyword
+  overlap). It narrows the firehose without judging true fit; that is M4's job.
+- A manual, admin-gated trigger `POST /admin/fetch-jobs` runs a fetch for one
+  user on demand (no scheduler; the multi-user loop is M5). Zero LLM spend.
+**Done:** an admin triggers a per-user fetch, `jobs` populates, a second fetch
+adds no duplicates, and the prefilter returns a sensible generous shortlist for a
+test profile, all with no model calls.
 
 ## M4 — Automated matching (funnel stage 2) ⬜ PLANNED
 Goal: scored matches per user.

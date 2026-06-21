@@ -1,5 +1,36 @@
 # CHANGELOG
 
+## 2026-06-21 — M3: per-user job-source ingestion, dedupe, no-LLM prefilter
+- Schema: migration `0004` adds the shared `jobs` pool of public postings. It
+  holds no user data, so it is intentionally not per-user RLS: authenticated read,
+  service-role write, with a unique `content_hash`. The shared-pool rationale and
+  the per-user isolation note are documented in DATA_MODEL.md.
+- Sources: a `JobSource` interface (`app/sources/base.py`) and an Adzuna US
+  adapter (`app/sources/adzuna.py`) in a small registry. Credentials come from the
+  environment. The query is built per user from the profile (target roles to
+  `title_only`, location to `where`, remote preference respected), country US,
+  with a polite bounded fetch (50 per page, a couple of pages per role, a short
+  delay). `redirect_url` is stored as `source_url` per Adzuna ToS.
+- Strict validation and graceful failure: every response is parsed through strict
+  Pydantic models; a structural change or missing required field is logged
+  specifically and skipped rather than stored as garbage. Zero-result and high
+  parse-failure batches log warnings. Each source runs in its own try/except, so a
+  source failure (410 auth, non-200, timeout, upstream down) is logged and skipped
+  and never 500s the app or kills the fetch. No exception is swallowed silently.
+- Dedupe (`app/dedupe.py`): a stable `content_hash` (source + external id, else
+  title + company + location) and an upsert on it, so a posting fetched twice is
+  one row and a re-fetch only updates `fetched_at`.
+- Prefilter (`app/prefilter.py`): a deterministic, no-LLM, generous ranked
+  shortlist (cap ~30) on safe signals (location/remote fit, recency, keyword
+  overlap). It narrows the firehose without judging true fit; that is M4's job.
+- Trigger: `POST /admin/fetch-jobs` runs a per-user fetch on demand (no scheduler;
+  the multi-user loop is M5). It is gated by an `ADMIN_USER_IDS` allowlist checked
+  against the caller's verified JWT; an empty allowlist denies everyone (fail
+  closed). Target user defaults to the caller; an admin may pass a user_id.
+- Cost: $0 LLM spend (no model calls anywhere in M3). New env `ADMIN_USER_IDS`
+  plus the existing `ADZUNA_APP_ID` / `ADZUNA_APP_KEY` (placeholders in
+  `.env.example`). 37 backend tests pass; pre-commit green.
+
 ## 2026-06-21 — Applied marker on scored jobs
 - Schema: migration `0003` adds a nullable `applied_at` (timestamptz) to
   `tailorings` (null = not applied, a timestamp = applied on that date). No new

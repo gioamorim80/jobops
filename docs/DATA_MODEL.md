@@ -26,19 +26,28 @@ backend service role.
 - `channels` jsonb default '{"email": true}'
 - `paused` boolean default false
 
-### jobs  (shared pool — service-role write, authenticated read)
+### jobs  (shared pool — service-role write, authenticated read)  [built in M3]
+A shared pool of PUBLIC job postings. It holds NO user data, so it is
+intentionally NOT per-user RLS: any authenticated user may read it, and only the
+backend service role writes it (RLS denies writes to `authenticated` because no
+write policy is defined; the service role bypasses RLS). Per-user isolation lives
+in the future `matches` table (M4), not here. Postings are fetched per user from
+each user's profile keywords but deduped into this one pool, so a posting two
+users both match is stored once.
 - `id` uuid PK
-- `source` text                    -- adapter name
-- `source_job_id` text
-- `title` / `company` / `location` text
-- `remote` boolean
-- `description` text
-- `url` text
+- `source` text                    -- adapter name, e.g. 'adzuna'
+- `external_id` text               -- the source's own job id
+- `source_url` text NOT NULL       -- Adzuna redirect_url; required for ToS attribution
+- `title` / `company` / `location_display` text
+- `location_area` jsonb            -- e.g. ["US", "California", "San Francisco"]
+- `remote` boolean                 -- best-effort
+- `description` text               -- Adzuna truncates to ~500 chars; stored as-is
+- `category` text
+- `salary_min` / `salary_max` numeric (nullable)
 - `posted_at` timestamptz
-- `content_hash` text              -- for dedupe
-- `raw` jsonb
-- `fetched_at` timestamptz
-- unique(`source`, `source_job_id`); index on `content_hash`
+- `content_hash` text UNIQUE       -- dedupe key (one row per posting)
+- `fetched_at` timestamptz default now()  -- updated on re-fetch, never a dupe
+- indexes on `posted_at` and `source`
 
 ### matches  (per-user, RLS) — from the automated pipeline
 - `id` uuid PK

@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     supabase_service_role_key: str | None = None
     resume_bucket: str = "resumes"
 
+    # --- Job sources (M3) ---
+    adzuna_app_id: str | None = None
+    adzuna_app_key: str | None = None
+    # Comma-separated Supabase user UUIDs allowed to trigger a manual job fetch.
+    # Empty = locked (no one can trigger) — fail closed.
+    admin_user_ids: str = ""
+
     # --- Guardrails ---
     per_user_daily_llm_cap: int = 25
     # Coach chat turns are very cheap (~0.6¢ each); this cap only deters abuse,
@@ -31,6 +38,10 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def admin_user_id_list(self) -> list[str]:
+        return [uid.strip() for uid in self.admin_user_ids.split(",") if uid.strip()]
 
 
 settings = Settings()

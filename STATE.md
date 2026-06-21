@@ -1,8 +1,22 @@
 # STATE — where the build is
 
-## Current position: M0–M2.6 done & deployed. Next up: M3 (job-source adapters).
-M0, M1, M2, M2.5, and M2.6 are built, deployed, and live. M3–M6 are planned (see
+## Current position: M0 through M3 done. Next up: M4 (automated matching).
+M0, M1, M2, M2.5, M2.6, and M3 are built. M4 through M6 are planned (see
 `ROADMAP.md`). Detailed per-milestone notes below; newest refinements first.
+
+## M3 — Job-source ingestion + dedupe + prefilter (2026-06-21)
+- Migration `0004` adds the shared `jobs` pool (public postings, NOT per-user
+  RLS: authenticated read, service-role write; `content_hash` unique).
+- `app/sources/base.py` (`JobSource` interface) + `app/sources/adzuna.py` (US
+  Adzuna adapter, env creds, strict Pydantic validation, polite bounded fetch,
+  stores `redirect_url` as `source_url` per ToS). `app/dedupe.py` (content_hash
+  upsert), `app/prefilter.py` (no-LLM generous ranked shortlist, cap 30).
+- `POST /admin/fetch-jobs` runs a per-user fetch on demand (no scheduler). Gated
+  by an `ADMIN_USER_IDS` allowlist checked against the verified JWT; empty = fail
+  closed. Source failures are caught per-source and logged, never a 500.
+- Zero LLM calls in M3. New env: `ADMIN_USER_IDS` (and the existing
+  `ADZUNA_APP_ID` / `ADZUNA_APP_KEY`). Operator must run migration 0004 and set
+  these on Railway, plus add their own user id to `ADMIN_USER_IDS`.
 
 ## Applied marker on scored jobs (2026-06-21)
 - Migration `0003` adds nullable `applied_at` (timestamptz) to `tailorings`
