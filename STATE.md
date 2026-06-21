@@ -4,6 +4,15 @@
 M0, M1, M2, M2.5, and M2.6 are built, deployed, and live. M3–M6 are planned (see
 `ROADMAP.md`). Detailed per-milestone notes below; newest refinements first.
 
+## Coach cap bug fix (2026-06-20)
+- Counting was already 1:1 (one `enrich` row per user message, per-user, daily,
+  default cap 50). Real cause: deployed `ENRICH_DAILY_TURN_CAP` left at 2 from an
+  earlier test. Fix: floor the effective cap at 40 (`max(configured, 40)`) so a
+  stray low value can't strangle chat; added turns-vs-cap logging; documented the
+  env in `.env.example`; added regression tests for per-user/daily/action-only
+  counting. Operator: set ENRICH_DAILY_TURN_CAP back to 50 (or unset it) on
+  Railway so the configured value matches intent; the floor covers it either way.
+
 ## M2.6 — Custom domain, branded email, design polish ✅ (2026-06-20)
 - Custom domain myjobops.app is live on Vercel (canonical URL, linked in README).
 - Branded transactional email through Resend: magic-link emails send from the

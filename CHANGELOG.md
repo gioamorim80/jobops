@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## 2026-06-20 — Fix Coach chat cap tripping after ~2 messages
+- Diagnosis: the counting was already correct (one logged "enrich" turn per user
+  message, filtered to that user and to today, against a default cap of 50), so
+  the code could not trip at message 3. The cause was the deployed
+  `ENRICH_DAILY_TURN_CAP` being left at a tiny test value (we had set it to 2
+  earlier to demo the limit and never reverted it), so the cap itself was 2.
+- Fix: added a generous abuse-only floor (`ENRICH_TURN_FLOOR = 40`); the
+  effective cap is `max(configured, 40)`, so a stray low value can no longer cut
+  off real conversations. Default with no env stays 50.
+- Added visibility: the chat endpoint now logs `turns_today`, the configured cap,
+  and the effective cap on every turn (and a warning when the limit is genuinely
+  reached), so the count vs cap is clear in server logs.
+- Documented `ENRICH_DAILY_TURN_CAP=50` in `.env.example` with a note not to set
+  it low in production.
+- Added regression tests proving the count is per-user, daily (since 00:00 UTC),
+  and filtered to only `enrich` turns (so history length and other features never
+  inflate it). One user message increments the count by exactly one.
+- Multi-tenant isolation and no-fabrication unchanged.
+
 ## 2026-06-20 — Spell "resume" without the accent everywhere
 - Swept all "résumé" to "resume" across the whole repo: frontend UI copy and
   card titles (for example "Suggested changes to your resume", "Replace resume",

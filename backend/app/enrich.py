@@ -11,6 +11,7 @@ usage_log. The per-user daily LLM cap is shared with the rest of the app.
 """
 
 import json
+import logging
 from typing import Literal
 
 from agents.enrich import ENRICH_SYSTEM_PROMPT_V2
@@ -27,6 +28,19 @@ router = APIRouter(prefix="/enrich", tags=["enrich"])
 
 MAX_MESSAGES = 20  # cap conversation length sent to the model
 MAX_CONTENT_CHARS = 2000  # cap per-message length
+
+# Abuse-only floor for the chat cap. A Coach turn is ~0.6 cents, so even if the
+# configured cap is somehow very low (e.g. a leftover test override on the
+# server), never block real conversations below this many turns/day.
+ENRICH_TURN_FLOOR = 40
+
+logger = logging.getLogger("jobops.enrich")
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)s %(name)s %(message)s"))
+    logger.addHandler(_handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
 
 
 # --------------------------------- models -------------------------------------
@@ -136,9 +150,27 @@ def merge_changes(parsed: dict, changes: dict) -> dict:
 def chat(user_id: CurrentUserId, body: ChatRequest) -> dict:
     client = get_service_client()
 
-    # Abuse guardrail only: a generous daily cap counting just this user's chat
-    # turns (one user message = one turn), so real conversations aren't cut off.
-    if count_calls_today(client, user_id, action="enrich") >= settings.enrich_daily_turn_cap:
+    # Abuse guardrail only. The cap counts ONLY this user's own logged "enrich"
+    # turns today (one user message = exactly one row via log_call below — never
+    # the resent conversation history, never other features' calls), resets at
+    # 00:00 UTC, and is floored generously so a stray low value can't cut off a
+    # real conversation. The log line makes the count vs cap visible in prod.
+    cap = max(settings.enrich_daily_turn_cap, ENRICH_TURN_FLOOR)
+    turns_today = count_calls_today(client, user_id, action="enrich")
+    logger.info(
+        "enrich cap check user=%s turns_today=%s configured_cap=%s effective_cap=%s",
+        user_id[:8],
+        turns_today,
+        settings.enrich_daily_turn_cap,
+        cap,
+    )
+    if turns_today >= cap:
+        logger.warning(
+            "enrich cap reached user=%s turns_today=%s effective_cap=%s",
+            user_id[:8],
+            turns_today,
+            cap,
+        )
         return {
             "status": "limit_reached",
             "message": (
