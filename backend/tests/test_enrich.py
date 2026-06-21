@@ -1,6 +1,6 @@
-"""Enrich-coach tests — auth gate + the pure merge helper (no network)."""
+"""Enrich-coach tests — auth gate, merge helper, and lenient reply parsing."""
 
-from app.enrich import merge_changes
+from app.enrich import _parse_coach_reply, merge_changes
 from app.main import app
 from fastapi.testclient import TestClient
 
@@ -49,3 +49,37 @@ def test_merge_changes_appends_dedupes_and_preserves() -> None:
     assert result["comp_floor"] == "150k"  # preserved
     # input not mutated
     assert parsed["skills"] == ["Python"]
+
+
+def test_parse_coach_reply_handles_plain_prose() -> None:
+    # This is the bug: as a conversation grows the model replies in prose without
+    # the JSON envelope. It must NOT raise (no more 502) — the prose becomes the
+    # reply, with no proposal.
+    reply, proposal = _parse_coach_reply(
+        "That's a great example to lead with. What was the impact on the team?"
+    )
+    assert reply.startswith("That's a great example")
+    assert proposal is None
+
+
+def test_parse_coach_reply_parses_json_envelope_with_proposal() -> None:
+    raw = (
+        '{"reply": "Got it, adding that.", "proposal": {"summary": "Add Rust", '
+        '"changes": {"add_skills": ["Rust"]}}}'
+    )
+    reply, proposal = _parse_coach_reply(raw)
+    assert reply == "Got it, adding that."
+    assert proposal is not None
+    assert proposal["changes"]["add_skills"] == ["Rust"]
+
+
+def test_parse_coach_reply_json_envelope_without_proposal() -> None:
+    reply, proposal = _parse_coach_reply('{"reply": "Tell me more.", "proposal": null}')
+    assert reply == "Tell me more."
+    assert proposal is None
+
+
+def test_parse_coach_reply_empty_falls_back() -> None:
+    reply, proposal = _parse_coach_reply("")
+    assert reply == "Tell me a little more?"
+    assert proposal is None

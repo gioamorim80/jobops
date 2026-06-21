@@ -26,14 +26,16 @@ def extract_json_object(text: str) -> dict:
         raise HTTPException(status_code=502, detail="Agent returned malformed JSON.") from exc
 
 
-def _run(
+def _run_raw(
     system: str,
     messages: list[dict],
     *,
     max_tokens: int,
     temperature: float | None,
     model: str | None,
-) -> tuple[dict, Any]:
+) -> tuple[str, Any]:
+    """Call the model and return the RAW reply text + usage. JSON parsing (if any)
+    is left to the caller, so a non-JSON reply never crashes inside the helper."""
     if not settings.anthropic_api_key:
         raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY is not configured.")
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
@@ -51,7 +53,7 @@ def _run(
         raise HTTPException(status_code=502, detail=f"Agent error: {exc}") from exc
 
     reply = "".join(block.text for block in message.content if block.type == "text")
-    return extract_json_object(reply), message.usage
+    return reply, message.usage
 
 
 def run_json_agent(
@@ -67,26 +69,28 @@ def run_json_agent(
     Pass `temperature` (e.g. 0 for the scorer) when you want deterministic output;
     omit it to use the model's default sampling (natural writing for the tailor).
     """
-    return _run(
+    text, usage = _run_raw(
         system,
         [{"role": "user", "content": user}],
         max_tokens=max_tokens,
         temperature=temperature,
         model=model,
     )
+    return extract_json_object(text), usage
 
 
-def run_json_chat(
+def run_chat_text(
     system: str,
     messages: list[dict],
     *,
     max_tokens: int = 800,
     model: str | None = None,
     temperature: float | None = None,
-) -> tuple[dict, Any]:
-    """Run a multi-turn chat (the caller supplies the message history, which must
-    end with a user turn) and return (parsed_json, usage)."""
-    return _run(
+) -> tuple[str, Any]:
+    """Run a multi-turn chat (history must end with a user turn) and return the
+    RAW reply text + usage. The caller parses leniently so a prose reply (common
+    as a conversation grows) is handled gracefully instead of raising a 502."""
+    return _run_raw(
         system,
         messages,
         max_tokens=max_tokens,

@@ -95,7 +95,7 @@ export interface ChatMessage {
 
 export type EnrichResponse =
   | { status: "ok"; reply: string; proposal: Proposal | null }
-  | { status: "limit_reached"; message: string };
+  | { status: "limit_reached" | "error"; message: string };
 
 // A saved tailoring row (read via RLS — only ever the user's own).
 export interface Tailoring {

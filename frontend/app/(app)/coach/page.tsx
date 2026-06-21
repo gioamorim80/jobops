@@ -126,12 +126,14 @@ export default function CoachPage() {
         await token(),
         { messages: payload },
       );
-      if (data.status === "limit_reached") {
+      if (data.status !== "ok") {
+        // limit_reached or a backend error: show the message and let the user
+        // retry. Only the daily limit disables further input.
         setMessages((m) => [
           ...m,
           { role: "assistant", content: data.message },
         ]);
-        setLimited(true);
+        if (data.status === "limit_reached") setLimited(true);
       } else {
         setMessages((m) => [
           ...m,

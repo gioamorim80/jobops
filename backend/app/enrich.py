@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 
 from app.auth import CurrentUserId
 from app.config import settings
-from app.llm import run_json_chat
+from app.llm import extract_json_object, run_chat_text
 from app.supabase_client import get_service_client
 from app.usage import count_calls_today, log_call
 
@@ -108,6 +108,24 @@ def _normalize_proposal(raw: object) -> dict | None:
     return {"summary": str(raw.get("summary") or "").strip(), "changes": changes}
 
 
+def _parse_coach_reply(raw: str) -> tuple[str, dict | None]:
+    """Turn the model's raw text into (reply, proposal), tolerating a plain-prose
+    reply. As a conversation grows the model sometimes drops the JSON envelope and
+    just talks; that must keep the chat going (prose becomes the reply, no
+    proposal) rather than 502. Returns the structured proposal only when the
+    model actually produced the JSON envelope."""
+    text = raw.strip()
+    try:
+        data = extract_json_object(raw)
+    except HTTPException:
+        data = None
+    if isinstance(data, dict) and "reply" in data:
+        reply = str(data.get("reply") or "").strip()
+        return (reply or "Tell me a little more?", _normalize_proposal(data.get("proposal")))
+    logger.info("enrich: reply had no JSON envelope; using the raw text, no proposal")
+    return (text or "Tell me a little more?", None)
+
+
 def _aslist(value: object) -> list[str]:
     return _strlist(value) if isinstance(value, list) else []
 
@@ -189,11 +207,26 @@ def chat(user_id: CurrentUserId, body: ChatRequest) -> dict:
     parsed = _load_parsed(client, user_id)
     system = f"{ENRICH_SYSTEM_PROMPT_V2}\n\nCURRENT PROFILE (JSON):\n{json.dumps(parsed)}"
 
-    data, usage = run_json_chat(system, convo, max_tokens=800)
-    log_call(client, user_id, "enrich", usage)
-
-    reply = str(data.get("reply") or "").strip() or "Tell me a little more?"
-    return {"status": "ok", "reply": reply, "proposal": _normalize_proposal(data.get("proposal"))}
+    # The model call itself can raise (config 503 / Anthropic APIError 502); those
+    # are already clean responses. Everything AFTER the model returns is wrapped so
+    # a parsing/handling bug surfaces as a logged traceback and a clean JSON error,
+    # never a silent 502.
+    raw, usage = run_chat_text(system, convo, max_tokens=800)
+    try:
+        log_call(client, user_id, "enrich", usage)
+        reply, proposal = _parse_coach_reply(raw)
+        return {"status": "ok", "reply": reply, "proposal": proposal}
+    except Exception:
+        logger.exception(
+            "enrich: response handling failed user=%s turns_today=%s reply_len=%s",
+            user_id[:8],
+            turns_today,
+            len(raw),
+        )
+        return {
+            "status": "error",
+            "message": "Sorry, something hiccuped on my end. Could you try that again?",
+        }
 
 
 @router.post("/apply")

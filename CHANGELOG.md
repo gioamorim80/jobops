@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-06-20 — Fix Coach 502 on multi-turn (silent JSON-parse crash)
+- Actual cause (confirmed): after a few turns the model replies in plain prose
+  without the JSON envelope the Coach expects, and `extract_json_object` raised
+  `HTTPException(502, "Agent returned no JSON.")`. FastAPI returns HTTPException
+  as a clean response with no traceback, which is why it looked like a silent
+  Railway 502. The cap was not involved.
+- Fix: the Coach now gets the raw model text (new `run_chat_text` in `llm.py`,
+  which does not force JSON) and parses it leniently. A prose reply becomes the
+  chat reply with no proposal, so a 6–8 turn conversation completes instead of
+  crashing; a real JSON envelope still yields the structured proposal.
+- Visibility: all response handling after the model call is wrapped to log the
+  full exception/traceback and return a clean JSON error (`status: "error"`)
+  instead of a 502; the non-JSON-reply case logs an INFO line.
+- Frontend: `EnrichResponse` gains an `error` status; the coach page shows the
+  message and lets the user retry (only the daily limit disables input).
+- Tests: added cases proving prose replies no longer raise, and that JSON
+  envelopes (with and without a proposal) still parse. 22 backend tests pass.
+
 ## 2026-06-20 — Fix Coach chat cap tripping after ~2 messages
 - Diagnosis: the counting was already correct (one logged "enrich" turn per user
   message, filtered to that user and to today, against a default cap of 50), so

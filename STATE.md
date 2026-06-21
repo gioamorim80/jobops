@@ -4,6 +4,15 @@
 M0, M1, M2, M2.5, and M2.6 are built, deployed, and live. M3–M6 are planned (see
 `ROADMAP.md`). Detailed per-milestone notes below; newest refinements first.
 
+## Coach multi-turn 502 fix (2026-06-20)
+- Real cause of the 3rd-turn 502: the model drops the JSON envelope and replies
+  in prose as the chat grows, so `extract_json_object` raised HTTPException(502)
+  ("Agent returned no JSON") — a clean FastAPI 502 with no traceback. Not the cap.
+- Fix: Coach uses raw model text (`run_chat_text`) + lenient parsing; prose
+  becomes the reply (no proposal), JSON envelope still yields the proposal. All
+  post-model handling wrapped to log tracebacks and return clean JSON, never 502.
+  Frontend handles a new `error` status. Tests cover prose and JSON cases.
+
 ## Coach cap bug fix (2026-06-20)
 - Counting was already 1:1 (one `enrich` row per user message, per-user, daily,
   default cap 50). Real cause: deployed `ENRICH_DAILY_TURN_CAP` left at 2 from an
