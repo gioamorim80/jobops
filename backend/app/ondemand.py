@@ -1,10 +1,18 @@
-"""On-demand "paste a link → score + tailor" endpoints (M2).
+"""On-demand "paste a link → score, then tailor on demand" endpoints (M2).
 
 POST /ondemand/score    accept a job URL or pasted text; fetch+extract if a URL;
-                        run the scorer then the tailor against the user's stored
-                        profile; save the result to `tailorings` (approved=false).
+                        run ONLY the scorer (the cheap step) against the user's
+                        stored profile; save to `tailorings` not-yet-tailored
+                        (empty bullets, approved=false).
+POST /ondemand/tailor   run the tailor (the expensive Sonnet step) ON DEMAND for
+                        one already-scored tailoring; save the suggested bullets.
+                        Only ever runs when the user explicitly asks for it.
 POST /ondemand/approve  save the user-edited bullets and mark approved=true.
 POST /ondemand/applied  toggle the "applied" marker (applied_at) on one tailoring.
+
+Cost principle: scoring is cheap and automatic; tailoring is expensive and gated
+behind explicit user intent. usage_log records "score" and "tailor" as distinct
+actions, so tailoring spend is visibly only on /tailor clicks.
 
 Security: user_id always comes from the verified JWT (CurrentUserId), never
 request input. Every read/write is scoped to that user's own rows. Per-user
@@ -51,6 +59,10 @@ class AppliedRequest(BaseModel):
     applied: bool
     applied_on: str | None = None  # "YYYY-MM-DD"; when marking applied, the date
     # the user actually applied (defaults to today). Ignored when un-marking.
+
+
+class TailorRequest(BaseModel):
+    id: str  # an existing (already-scored) tailoring to tailor on demand
 
 
 class ApproveRequest(BaseModel):
@@ -174,34 +186,59 @@ def _find_existing(client, user_id: str, source_url: str | None, pasted_text: st
     return None
 
 
-def _cached_response(row: dict) -> dict:
-    """Build the score response from a saved row — no LLM call. Note: tailor
-    `flags` are not persisted, so a saved result returns an empty flags list."""
+def _tailor_from_row(row: dict) -> dict | None:
+    """The saved tailoring for a row, or None if it was scored but not yet
+    tailored. `flags` are not persisted, so a saved result has an empty flags
+    list."""
+    if not row.get("tailored_bullets"):
+        return None
+    return _normalize_tailor(
+        {
+            "tailored_bullets": row.get("tailored_bullets") or [],
+            "analysis": row.get("analysis") or "",
+            "flags": [],
+        }
+    )
+
+
+def _score_payload(
+    *, tailoring_id: str, cached: bool, approved: bool, score: dict, tailor: dict | None
+) -> dict:
+    """Shape returned by /score. `tailored` tells the UI whether to show the saved
+    bullets or the on-demand "Tailor my resume for this" button."""
     return {
         "status": "ok",
-        "id": row["id"],
-        "cached": True,
-        "approved": bool(row.get("approved")),
-        "score": _normalize_score(row.get("score") or {}),
-        "tailor": _normalize_tailor(
-            {
-                "tailored_bullets": row.get("tailored_bullets") or [],
-                "analysis": row.get("analysis") or "",
-                "flags": [],
-            }
-        ),
+        "id": tailoring_id,
+        "cached": cached,
+        "approved": approved,
+        "score": score,
+        "tailored": tailor is not None,
+        "tailor": tailor,
     }
+
+
+def _cached_score_response(row: dict) -> dict:
+    """Build the /score response from a saved row — no LLM call. Includes the
+    saved tailoring if the job was already tailored, else tailor=None."""
+    return _score_payload(
+        tailoring_id=row["id"],
+        cached=True,
+        approved=bool(row.get("approved")),
+        score=_normalize_score(row.get("score") or {}),
+        tailor=_tailor_from_row(row),
+    )
 
 
 # --------------------------------- endpoints ----------------------------------
 @router.post("/score")
-def score_and_tailor(user_id: CurrentUserId, body: ScoreRequest) -> dict:
+def score_job(user_id: CurrentUserId, body: ScoreRequest) -> dict:
     client = get_service_client()
 
-    # 1) Need a completed profile to score against.
+    # 1) Need a completed profile to score against. (The resume text isn't needed
+    #    here — only tailoring uses it — so we don't load it on the cheap path.)
     profile_rows = (
         client.table("profiles")
-        .select("parsed, raw_resume_text, onboarding_complete")
+        .select("parsed, onboarding_complete")
         .eq("user_id", user_id)
         .limit(1)
         .execute()
@@ -215,7 +252,6 @@ def score_and_tailor(user_id: CurrentUserId, body: ScoreRequest) -> dict:
         }
     profile = profile_rows[0]
     parsed = profile.get("parsed") or {}
-    raw_resume = profile.get("raw_resume_text") or ""
 
     # 2) Resolve inputs. A URL (if given) is normalized and used as the cache key;
     #    otherwise the pasted text is. Pasted text wins as the posting body.
@@ -229,7 +265,7 @@ def score_and_tailor(user_id: CurrentUserId, body: ScoreRequest) -> dict:
     #    unless they explicitly asked to re-score.
     existing = _find_existing(client, user_id, source_url, pasted)
     if existing and not body.force:
-        return _cached_response(existing)
+        return _cached_score_response(existing)
 
     # 4) Cost guardrail (only on a fresh run): per-user daily LLM-call cap.
     if count_calls_today(client, user_id) >= settings.per_user_daily_llm_cap:
@@ -257,8 +293,9 @@ def score_and_tailor(user_id: CurrentUserId, body: ScoreRequest) -> dict:
             }
     job_text = job_text[:MAX_JOB_CHARS]
 
-    # 6) Score, then tailor — both on the backend; log every call.
-    # temperature=0 keeps scoring stable: the same job + profile scores the same.
+    # 6) Score ONLY — the cheap step. Tailoring is a separate, on-demand call
+    #    (POST /ondemand/tailor) so we never spend the expensive tailor on a job
+    #    the user won't pursue. temperature=0 keeps scoring stable.
     score_raw, score_usage = run_json_agent(
         SCORER_SYSTEM_PROMPT_V1,
         f"USER PROFILE (JSON):\n{json.dumps(parsed)}\n\nJOB POSTING:\n{job_text}",
@@ -272,22 +309,9 @@ def score_and_tailor(user_id: CurrentUserId, body: ScoreRequest) -> dict:
     role = _clean_label(score_raw.get("role"))
     company = _clean_label(score_raw.get("company"))
 
-    tailor_raw, tailor_usage = run_json_agent(
-        TAILOR_SYSTEM_PROMPT_V1,
-        (
-            f"USER PROFILE (JSON):\n{json.dumps(parsed)}\n\n"
-            f"ATTRIBUTION NOTES:\n{json.dumps(parsed.get('attribution_notes', []))}\n\n"
-            f"RÉSUMÉ TEXT:\n{raw_resume}\n\n"
-            f"JOB POSTING:\n{job_text}\n\n"
-            f"SCORER RESULT (JSON):\n{json.dumps(score)}"
-        ),
-        max_tokens=2500,
-    )
-    log_call(client, user_id, "tailor", tailor_usage)
-    tailor = _normalize_tailor(tailor_raw)
-
-    # 7) Persist for the user (unapproved until they explicitly approve). Re-scoring
-    #    an existing job overwrites that one row rather than piling up duplicates.
+    # 7) Persist as scored-but-not-tailored (empty bullets/analysis, approved=false).
+    #    Re-scoring an existing job overwrites that one row (and resets any prior
+    #    tailoring/approval, since the score is fresh) rather than piling up dupes.
     record = {
         "user_id": user_id,
         "source_url": source_url,
@@ -295,8 +319,8 @@ def score_and_tailor(user_id: CurrentUserId, body: ScoreRequest) -> dict:
         "role": role,
         "company": company,
         "score": score,
-        "tailored_bullets": tailor["tailored_bullets"],
-        "analysis": tailor["analysis"],
+        "tailored_bullets": [],
+        "analysis": "",
         "approved": False,
     }
     if existing:
@@ -308,12 +332,98 @@ def score_and_tailor(user_id: CurrentUserId, body: ScoreRequest) -> dict:
         inserted = client.table("tailorings").insert(record).execute().data
         tailoring_id = inserted[0]["id"] if inserted else None
 
+    return _score_payload(
+        tailoring_id=tailoring_id, cached=False, approved=False, score=score, tailor=None
+    )
+
+
+@router.post("/tailor")
+def tailor_resume(user_id: CurrentUserId, body: TailorRequest) -> dict:
+    """Run the tailor (the expensive Sonnet step) ON DEMAND for one already-scored
+    tailoring of the caller's own. Saves the suggested bullets + analysis. If the
+    row was already tailored, returns the saved bullets with no model call."""
+    client = get_service_client()
+
+    rows = (
+        client.table("tailorings")
+        .select("id, job_text, score, tailored_bullets, analysis, approved")
+        .eq("id", body.id)
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="Tailoring not found.")
+    row = rows[0]
+
+    # Already tailored — return what's saved, no LLM call (and no cap consumed).
+    existing_tailor = _tailor_from_row(row)
+    if existing_tailor is not None:
+        return {
+            "status": "ok",
+            "id": row["id"],
+            "approved": bool(row.get("approved")),
+            "tailor": existing_tailor,
+        }
+
+    job_text = (row.get("job_text") or "")[:MAX_JOB_CHARS]
+    if not job_text:
+        raise HTTPException(status_code=422, detail="No saved job text to tailor against.")
+
+    # Need the resume/profile to tailor against.
+    profile_rows = (
+        client.table("profiles")
+        .select("parsed, raw_resume_text, onboarding_complete")
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if not profile_rows or not profile_rows[0].get("onboarding_complete"):
+        return {
+            "status": "no_profile",
+            "message": "Finish setting up your profile first, then tailor for this job.",
+        }
+    parsed = profile_rows[0].get("parsed") or {}
+    raw_resume = profile_rows[0].get("raw_resume_text") or ""
+    score = _normalize_score(row.get("score") or {})
+
+    # Cost guardrail: per-user daily LLM-call cap (shared with scoring/coach).
+    if count_calls_today(client, user_id) >= settings.per_user_daily_llm_cap:
+        return {
+            "status": "limit_reached",
+            "message": (
+                f"You've reached today's limit of {settings.per_user_daily_llm_cap} "
+                "agent calls. It resets at midnight UTC — see you then."
+            ),
+        }
+
+    tailor_raw, tailor_usage = run_json_agent(
+        TAILOR_SYSTEM_PROMPT_V1,
+        (
+            f"USER PROFILE (JSON):\n{json.dumps(parsed)}\n\n"
+            f"ATTRIBUTION NOTES:\n{json.dumps(parsed.get('attribution_notes', []))}\n\n"
+            f"RESUME TEXT:\n{raw_resume}\n\n"
+            f"JOB POSTING:\n{job_text}\n\n"
+            f"SCORER RESULT (JSON):\n{json.dumps(score)}"
+        ),
+        max_tokens=2500,
+    )
+    log_call(client, user_id, "tailor", tailor_usage)
+    tailor = _normalize_tailor(tailor_raw)
+
+    # Save the suggestions; leave approved=false until the user reviews + approves.
+    client.table("tailorings").update(
+        {"tailored_bullets": tailor["tailored_bullets"], "analysis": tailor["analysis"]}
+    ).eq("id", row["id"]).eq("user_id", user_id).execute()
+
     return {
         "status": "ok",
-        "id": tailoring_id,
-        "cached": False,
-        "approved": False,
-        "score": score,
+        "id": row["id"],
+        "approved": bool(row.get("approved")),
         "tailor": tailor,
     }
 

@@ -1,5 +1,33 @@
 # CHANGELOG
 
+## 2026-06-22 — Split "Score a job" into two gated steps (score, then tailor)
+- Enforces the core cost principle: scoring is cheap and automatic; tailoring is
+  the expensive Sonnet step and is now gated behind explicit user intent. Before,
+  one "Score & tailor" button auto-tailored every scored job.
+- `POST /ondemand/score` runs ONLY the scorer (usage_log action "score") and saves
+  the tailoring scored-but-not-tailored (empty bullets/analysis, approved=false).
+  It no longer loads the resume text. A forced re-score resets any prior tailoring
+  and approval.
+- New `POST /ondemand/tailor {id}` runs the tailor on demand for one of the
+  caller's own scored rows (usage_log action "tailor"), saves the suggested
+  bullets + analysis, and returns them. An already-tailored row returns its saved
+  bullets with no model call. Same per-user daily cap; 404 if the row isn't the
+  caller's, 422 if there's no saved job text. Scoped by JWT user_id.
+- `/score` response now includes `tailored` (bool) and `tailor` (the saved
+  tailoring or null). Frontend `/score`: the primary button is "Score"; the result
+  shows score, band, decision, cleared, and gaps, then either the saved
+  suggestions (if already tailored) or a "Tailor my resume for this" button that
+  runs tailoring only when clicked. The approve flow, review flags, match
+  analysis, no-fabrication copy, role/company extraction, source link, and applied
+  controls are unchanged.
+- Cost visibility: usage_log already distinguishes "score" from "tailor"; tailoring
+  now only appears there on an explicit Tailor click. A low-fit job can be scored
+  and left untailored, spending nothing on tailoring.
+- flags and "Match analysis" come from the tailor step, so they surface after
+  tailoring (not on the cheap score view). All reads/writes stay scoped to the
+  user's own rows (RLS + JWT). No migration, no new env. 68 backend tests pass;
+  frontend lint + build clean; pre-commit clean.
+
 ## 2026-06-22 — Scored jobs list: role/company labels + clean source link
 - The history row now reads "Role — Company" instead of the first line of the job
   description. Shows just the role when the company can't be determined, and a

@@ -6,7 +6,12 @@ import { useState } from "react";
 import { RotatingStatus } from "@/components/RotatingStatus";
 import { backendPost } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
-import type { ScoreResponse, ScoreResult, TailorResult } from "@/lib/types";
+import type {
+  ScoreResponse,
+  ScoreResult,
+  TailorResponse,
+  TailorResult,
+} from "@/lib/types";
 import { decisionClass, fitBand } from "@/lib/ui";
 
 type Phase = "input" | "loading" | "result";
@@ -36,6 +41,7 @@ export default function ScorePage() {
   const [bullets, setBullets] = useState<string[]>([]);
   const [cached, setCached] = useState(false);
 
+  const [tailoring, setTailoring] = useState(false);
   const [approving, setApproving] = useState(false);
   const [approved, setApproved] = useState(false);
 
@@ -77,7 +83,9 @@ export default function ScorePage() {
       setId(data.id);
       setScore(data.score);
       setTailor(data.tailor);
-      setBullets(data.tailor.tailored_bullets.map((b) => b.tailored));
+      setBullets(
+        data.tailor ? data.tailor.tailored_bullets.map((b) => b.tailored) : [],
+      );
       setCached(data.cached);
       setApproved(data.approved);
       setPhase("result");
@@ -109,6 +117,31 @@ export default function ScorePage() {
     }
   }
 
+  async function tailorResume() {
+    if (!id) return;
+    setTailoring(true);
+    setError("");
+    setNotice("");
+    try {
+      const data = await backendPost<TailorResponse>(
+        "/ondemand/tailor",
+        await token(),
+        { id },
+      );
+      if (data.status !== "ok") {
+        setNotice(data.message);
+        return;
+      }
+      setTailor(data.tailor);
+      setBullets(data.tailor.tailored_bullets.map((b) => b.tailored));
+      setApproved(data.approved);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setTailoring(false);
+    }
+  }
+
   function reset() {
     setPhase("input");
     setUrl("");
@@ -118,6 +151,7 @@ export default function ScorePage() {
     setTailor(null);
     setBullets([]);
     setCached(false);
+    setTailoring(false);
     setApproved(false);
     setError("");
     setNotice("");
@@ -127,7 +161,7 @@ export default function ScorePage() {
     return <RotatingStatus />;
   }
 
-  if (phase === "result" && score && tailor) {
+  if (phase === "result" && score) {
     return (
       <div style={{ maxWidth: 720 }}>
         <div className="section-head">
@@ -185,85 +219,128 @@ export default function ScorePage() {
           <List items={score.gaps} empty="No notable gaps." />
         </div>
 
-        {tailor.flags.length > 0 && (
-          <div className="card">
-            <div className="card-title">Please review</div>
-            <div className="flags">
-              {tailor.flags.map((flag, i) => (
-                <span key={i} className="alert alert-info">
-                  {flag}
-                </span>
-              ))}
-            </div>
-            <p className="hint" style={{ marginTop: "0.75rem" }}>
-              We never invent metrics or claims. Anything flagged needs your
-              real number or a correction before you use it.
-            </p>
+        {notice && (
+          <div className="alert alert-info" style={{ marginTop: "1.25rem" }}>
+            {notice}
+          </div>
+        )}
+        {error && (
+          <div className="alert alert-error" style={{ marginTop: "1.25rem" }}>
+            {error}
           </div>
         )}
 
-        <div className="card">
-          <div className="card-title">Suggested changes to your resume</div>
-          <p className="hint" style={{ marginTop: 0, marginBottom: "1rem" }}>
-            Each one shows where on your resume it applies. Reordered and
-            rephrased from your real experience — never invented. Edit any of
-            them, then approve.
-          </p>
-          {tailor.tailored_bullets.length === 0 && (
-            <p className="faint">No suggestions were generated.</p>
-          )}
-          {tailor.tailored_bullets.map((b, i) => (
-            <div key={i} className="bullet">
-              {b.where && <p className="where">{b.where}</p>}
-              {b.original && <p className="orig">Currently: {b.original}</p>}
-              <textarea
-                className="textarea"
-                value={bullets[i] ?? ""}
-                onChange={(e) => {
-                  const next = [...bullets];
-                  next[i] = e.target.value;
-                  setBullets(next);
-                }}
-                disabled={approved}
-              />
-              {b.why && <p className="why">Why: {b.why}</p>}
-            </div>
-          ))}
-        </div>
-
-        {tailor.analysis && (
+        {!tailor ? (
           <div className="card">
-            <div className="card-title">Match analysis</div>
-            <p className="muted" style={{ margin: 0 }}>
-              {tailor.analysis}
+            <div className="card-title">Tailor your resume for this</div>
+            <p className="hint" style={{ marginTop: 0, marginBottom: "1rem" }}>
+              Scoring is done. When you want to apply, generate suggested resume
+              changes from your real experience — reordered and rephrased, never
+              invented. This is the deeper step, so run it only for jobs you mean
+              to pursue.
             </p>
-          </div>
-        )}
-
-        {error && <div className="alert alert-error">{error}</div>}
-
-        {approved ? (
-          <div className="alert alert-success" style={{ marginTop: "1rem" }}>
-            Approved and saved. Nothing is sent anywhere on your behalf — these
-            are yours to use.
-          </div>
-        ) : (
-          <div style={{ marginTop: "1.25rem" }}>
             <button
               type="button"
               className="btn"
-              onClick={approve}
-              disabled={approving}
+              onClick={tailorResume}
+              disabled={tailoring}
             >
-              {approving ? (
+              {tailoring ? (
                 <>
-                  <span className="spinner" /> Saving…
+                  <span className="spinner" /> Tailoring…
                 </>
               ) : (
-                "Approve these bullets"
+                "Tailor my resume for this"
               )}
             </button>
           </div>
+        ) : (
+          <>
+            {tailor.flags.length > 0 && (
+              <div className="card">
+                <div className="card-title">Please review</div>
+                <div className="flags">
+                  {tailor.flags.map((flag, i) => (
+                    <span key={i} className="alert alert-info">
+                      {flag}
+                    </span>
+                  ))}
+                </div>
+                <p className="hint" style={{ marginTop: "0.75rem" }}>
+                  We never invent metrics or claims. Anything flagged needs your
+                  real number or a correction before you use it.
+                </p>
+              </div>
+            )}
+
+            <div className="card">
+              <div className="card-title">Suggested changes to your resume</div>
+              <p
+                className="hint"
+                style={{ marginTop: 0, marginBottom: "1rem" }}
+              >
+                Each one shows where on your resume it applies. Reordered and
+                rephrased from your real experience — never invented. Edit any
+                of them, then approve.
+              </p>
+              {tailor.tailored_bullets.length === 0 && (
+                <p className="faint">No suggestions were generated.</p>
+              )}
+              {tailor.tailored_bullets.map((b, i) => (
+                <div key={i} className="bullet">
+                  {b.where && <p className="where">{b.where}</p>}
+                  {b.original && <p className="orig">Currently: {b.original}</p>}
+                  <textarea
+                    className="textarea"
+                    value={bullets[i] ?? ""}
+                    onChange={(e) => {
+                      const next = [...bullets];
+                      next[i] = e.target.value;
+                      setBullets(next);
+                    }}
+                    disabled={approved}
+                  />
+                  {b.why && <p className="why">Why: {b.why}</p>}
+                </div>
+              ))}
+            </div>
+
+            {tailor.analysis && (
+              <div className="card">
+                <div className="card-title">Match analysis</div>
+                <p className="muted" style={{ margin: 0 }}>
+                  {tailor.analysis}
+                </p>
+              </div>
+            )}
+
+            {approved ? (
+              <div
+                className="alert alert-success"
+                style={{ marginTop: "1rem" }}
+              >
+                Approved and saved. Nothing is sent anywhere on your behalf —
+                these are yours to use.
+              </div>
+            ) : (
+              <div style={{ marginTop: "1.25rem" }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={approve}
+                  disabled={approving}
+                >
+                  {approving ? (
+                    <>
+                      <span className="spinner" /> Saving…
+                    </>
+                  ) : (
+                    "Approve these bullets"
+                  )}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     );
@@ -274,9 +351,9 @@ export default function ScorePage() {
     <div style={{ maxWidth: 640 }}>
       <h1>Score a job</h1>
       <p className="muted">
-        Paste a job link or the posting text. We&apos;ll score your fit and
-        draft tailored bullets — grounded only in what&apos;s true on your
-        profile.
+        Paste a job link or the posting text for an honest fit score, grounded
+        only in what&apos;s true on your profile. Tailoring your resume is a
+        separate step you choose, on the jobs you want to pursue.
       </p>
 
       <div className="card">
@@ -332,7 +409,7 @@ export default function ScorePage() {
       )}
 
       <button type="button" className="btn" onClick={() => run(false)}>
-        Score &amp; tailor
+        Score
       </button>
     </div>
   );

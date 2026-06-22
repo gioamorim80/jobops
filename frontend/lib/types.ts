@@ -68,9 +68,15 @@ export type ScoreResponse =
       cached: boolean;
       approved: boolean;
       score: ScoreResult;
-      tailor: TailorResult;
+      tailored: boolean; // whether this job already has saved tailoring
+      tailor: TailorResult | null; // saved tailoring, or null if not tailored yet
     }
   | { status: "unreadable" | "limit_reached" | "no_profile"; message: string };
+
+// The on-demand tailoring step (the expensive Sonnet step), run only on click.
+export type TailorResponse =
+  | { status: "ok"; id: string; approved: boolean; tailor: TailorResult }
+  | { status: "limit_reached" | "no_profile"; message: string };
 
 export interface ProposalChanges {
   add_skills: string[];

@@ -4,6 +4,34 @@
 M0, M1, M2, M2.5, M2.6, and M3 are built. M4 through M6 are planned (see
 `ROADMAP.md`). Detailed per-milestone notes below; newest refinements first.
 
+## Split score/tailor into two gated steps (2026-06-22)
+- Cost principle made real: scoring is cheap and automatic; tailoring is the
+  expensive Sonnet step, now gated behind explicit user intent. Previously one
+  "Score & tailor" button auto-tailored every scored job.
+- `POST /ondemand/score` now runs ONLY the scorer (logs action "score") and saves
+  the row scored-but-not-tailored (`tailored_bullets=[]`, `analysis=""`,
+  approved=false). The resume text is no longer loaded on this path. A forced
+  re-score resets any prior tailoring/approval (fresh score).
+- New `POST /ondemand/tailor {id}` runs the tailor ON DEMAND for one of the
+  caller's own scored rows (logs action "tailor"), saves the bullets/analysis, and
+  returns them. If the row is already tailored it returns the saved bullets with
+  NO model call. Enforces the same per-user daily cap; 404 on a row that isn't the
+  caller's; 422 if there's no saved job text.
+- `/score` response gained `tailored` (bool) + `tailor` (the saved tailoring or
+  null). Frontend `/score`: primary button is now "Score"; the result shows
+  score/band/decision/cleared/gaps, then either the saved suggestions (if already
+  tailored) or a "Tailor my resume for this" button that fires the tailor step on
+  click. The approve flow, flags, match analysis, no-fabrication copy, role/company
+  extraction, source link, and applied controls are unchanged.
+- Cost visibility: usage_log already records "score" vs "tailor" as distinct
+  actions; tailoring now only appears there when the user clicks Tailor. A user can
+  score a low-fit job and never tailor it, spending nothing on tailoring.
+- Note: tailor `flags` and "Match analysis" are produced by the tailor (Sonnet)
+  step, so they appear only after tailoring, not on the cheap score view. Moving
+  analysis into the scorer would be a separate scorer-prompt change (not done).
+- All reads/writes scoped to the user's own rows (RLS + JWT user_id). No migration,
+  no new env. 68 backend tests green; frontend lint/build clean; pre-commit clean.
+
 ## Scored jobs list: role/company labels + clean source link (2026-06-22)
 - Row label now shows "Role — Company" (just the role if no company, a short
   fallback if neither) instead of raw description copy.

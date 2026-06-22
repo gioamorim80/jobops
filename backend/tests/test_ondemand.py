@@ -19,6 +19,14 @@ def test_score_requires_auth() -> None:
     assert response.status_code == 401
 
 
+def test_tailor_requires_auth() -> None:
+    response = client.post(
+        "/ondemand/tailor",
+        json={"id": "00000000-0000-0000-0000-000000000000"},
+    )
+    assert response.status_code == 401
+
+
 def test_approve_requires_auth() -> None:
     response = client.post(
         "/ondemand/approve",
