@@ -62,17 +62,28 @@ Notes:
   existing M2 paste-a-link flow is the intended path for full-text on-demand
   scoring and tailoring of a scanned job.
 
-### matches  (per-user, RLS) — from the automated pipeline
+### matches  (per-user, RLS) — from the automated pipeline  [built in M4, 0007]
+This is the isolation boundary the shared `jobs` pool deliberately deferred.
+`jobs` holds only PUBLIC postings, so it is authenticated-read and NOT per-user
+RLS. `matches` holds PER-USER results (one user's fit score + cleared/gaps for a
+job), so it carries `user_id` and enforces per-user RLS: a user may SELECT only
+their own matches (`user_id = auth.uid()`), and there is NO write policy for
+`authenticated` — only the backend service role writes matches (it bypasses RLS).
 - `id` uuid PK
-- `user_id` uuid FK
-- `job_id` uuid FK -> jobs
-- `prefilter_score` numeric
-- `llm_score` int
-- `decision` text check in ('APPLY','STRETCH','SKIP')
-- `cleared` jsonb / `gaps` jsonb
-- `pitch` text / `referral_angle` text
-- `scored_at` timestamptz
-- unique(`user_id`, `job_id`)
+- `user_id` uuid FK -> auth.users (on delete cascade)
+- `job_id` uuid FK -> jobs (on delete cascade)
+- `score` int                       -- 0–100 fit; PURE, recency never factored in
+- `band` text                       -- qualitative band (reuses the scorer bands)
+- `cleared` jsonb / `gaps` jsonb    -- requirements cleared (evidence-traced) / honest gaps
+- `analysis` text                   -- optional one-line summary (the scorer pitch)
+- `posted_at` timestamptz           -- carried from jobs; SEPARATE recency signal for M5
+- `model` text                      -- scorer model, e.g. 'claude-haiku-4-5'
+- `scored_at` timestamptz default now()
+- unique(`user_id`, `job_id`)       -- a job is scored once per user (re-runs upsert)
+
+The fit `score` is stored pure (no recency mixed in). `posted_at` is copied onto
+the row so M5's digest can rank/threshold by recency as a separate signal without
+contaminating the fit score.
 
 ### tailorings  (per-user, RLS) — from the on-demand link/paste flow
 - `id` uuid PK

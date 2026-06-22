@@ -14,6 +14,12 @@ def test_fetch_jobs_requires_auth() -> None:
     assert response.status_code == 401
 
 
+def test_score_matches_requires_auth() -> None:
+    # M4 scoring trigger is gated the same way (LLM spend + pool reads).
+    response = client.post("/admin/score-matches", json={})
+    assert response.status_code == 401
+
+
 def test_is_admin_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "admin_user_ids", "uid-1, uid-2")
     assert is_admin("uid-1") is True

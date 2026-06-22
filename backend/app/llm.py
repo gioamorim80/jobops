@@ -1,8 +1,9 @@
 """Shared helper for running a JSON-returning Anthropic agent.
 
-Prompt-based JSON (no structured-output coupling). Prompt caching is
-intentionally NOT used yet — there is no repeated context at this stage
-(deferred per the roadmap).
+Prompt-based JSON (no structured-output coupling). Prompt caching is used by the
+M4 matcher (`run_cached_json_agent`): the rubric + profile prefix is identical
+across every job in a scoring run, so it's marked with `cache_control` and the
+per-job snippet is the only uncached part (cache reads bill at ~0.1x input).
 """
 
 import json
@@ -27,7 +28,7 @@ def extract_json_object(text: str) -> dict:
 
 
 def _run_raw(
-    system: str,
+    system: str | list[dict],
     messages: list[dict],
     *,
     max_tokens: int,
@@ -71,6 +72,29 @@ def run_json_agent(
     """
     text, usage = _run_raw(
         system,
+        [{"role": "user", "content": user}],
+        max_tokens=max_tokens,
+        temperature=temperature,
+        model=model,
+    )
+    return extract_json_object(text), usage
+
+
+def run_cached_json_agent(
+    system_blocks: list[dict],
+    user: str,
+    *,
+    max_tokens: int = 1200,
+    model: str | None = None,
+    temperature: float | None = None,
+) -> tuple[dict, Any]:
+    """Like `run_json_agent`, but `system_blocks` is a list of system content
+    blocks so the caller can mark a stable prefix with `cache_control`. Used by the
+    matcher to cache the rubric+profile across every job in a run. The returned
+    `usage` carries `cache_read_input_tokens` / `cache_creation_input_tokens` so
+    the savings are observable. Returns (parsed_json, usage)."""
+    text, usage = _run_raw(
+        system_blocks,
         [{"role": "user", "content": user}],
         max_tokens=max_tokens,
         temperature=temperature,

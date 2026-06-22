@@ -1,8 +1,7 @@
 # ROADMAP — JobOps milestones
 
 Built one milestone at a time; a milestone is done only when its acceptance
-criteria pass AND it deploys. **M0 through M3 are done; M4 through M6 are
-planned.**
+criteria pass AND it deploys. **M0 through M4 are done; M5 and M6 are planned.**
 The on-demand link flow (M2) was sequenced ahead of the automated scanner
 (M3–M5) by design.
 
@@ -96,19 +95,30 @@ Goal: a growing pool of real jobs, fetched legitimately, per user.
 adds no duplicates, and the prefilter returns a sensible generous shortlist for a
 test profile, all with no model calls.
 
-## M4 — Automated matching (funnel stage 2) ⬜ PLANNED
+## M4 — Automated matching (funnel stage 2) ✅ DONE
 Goal: scored matches per user.
-- For each active user: prefilter shortlist → LLM-score → store `matches`.
-- Matches dashboard in the frontend (sortable by fit, filter by decision).
-- Carried over from M3: the pooled `description` is only Adzuna's ~500-char
-  excerpt, so decide whether to re-fetch the full JD via `source_url` before
-  scoring. The existing M2 paste-a-link flow is the intended path for full-text
-  on-demand scoring and tailoring of a scanned job.
-- Carried over from M3: treat `salary_is_predicted = true` rows as rough Adzuna
-  estimates, not advertised pay — never apply a hard salary-floor penalty on a
-  prediction.
-**Done when:** the pipeline produces stored, per-user matches and the dashboard
-shows each user only their own.
+- Per user: the cheap M3 prefilter shortlist → LLM-score with the EXISTING honest
+  scorer → store per-user `matches` (migration `0007`, per-user RLS).
+- Cost architecture from the start: the scorer runs on **Haiku 4.5** (Sonnet stays
+  reserved for on-demand tailoring); **prompt caching** marks the rubric+profile
+  prefix so only the per-job snippet is uncached; each score logs to `usage_log`
+  as **`match_score`** (model-priced, cache-aware) so the savings are visible; the
+  per-user daily cap is respected (score what fits, report what was skipped).
+- The fit score is PURE — recency/`posted_at` is never factored in. `posted_at` is
+  carried onto the match row only so M5 can use recency as a separate signal.
+- Dedicated **Matches** UI section (separate from the Scored-jobs tracker): each
+  match shows role/company, location, score + band, honest cleared/gaps, a
+  "View posting →" link, and a "Tailor my resume for this" button that reuses the
+  on-demand tailor flow (no auto-tailoring).
+- Trigger: gated `POST /admin/score-matches` (same fail-closed `ADMIN_USER_IDS`
+  gate as M3). No scheduler (that is M5).
+- Carried over from M3 (still open for M5): the pooled `description` is Adzuna's
+  ~500-char excerpt — M4 scores on that snippet; full-JD scoring stays the M2
+  paste-a-link path. And treat `salary_is_predicted = true` as a rough estimate,
+  never a hard salary-floor penalty.
+**Done:** the admin trigger produces stored, per-user matches scored by the same
+honest rubric on Haiku with caching, and the Matches section shows each user only
+their own (RLS).
 
 ## M5 — Scheduled digests + email + guardrails ⬜ PLANNED
 Goal: recurring alerts, safely. **Decision: digests and saved links surface the

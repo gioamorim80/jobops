@@ -103,6 +103,24 @@ export type EnrichResponse =
   | { status: "ok"; reply: string; proposal: Proposal | null }
   | { status: "limit_reached" | "error"; message: string };
 
+// A per-user automated match (read via RLS — only ever the user's own), with the
+// shared job it points at embedded from the jobs pool.
+export interface Match {
+  id: string;
+  score: number | null;
+  band: string | null;
+  cleared: string[] | null;
+  gaps: string[] | null;
+  analysis: string | null;
+  posted_at: string | null;
+  jobs: {
+    title: string | null;
+    company: string | null;
+    location_display: string | null;
+    source_url: string | null;
+  } | null;
+}
+
 // A saved tailoring row (read via RLS — only ever the user's own).
 export interface Tailoring {
   id: string;

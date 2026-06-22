@@ -1,8 +1,33 @@
 # STATE — where the build is
 
-## Current position: M0 through M3 done. Next up: M4 (automated matching).
-M0, M1, M2, M2.5, M2.6, and M3 are built. M4 through M6 are planned (see
+## Current position: M0 through M4 done. Next up: M5 (scheduled digests + email).
+M0, M1, M2, M2.5, M2.6, M3, and M4 are built. M5 and M6 are planned (see
 `ROADMAP.md`). Detailed per-milestone notes below; newest refinements first.
+
+## M4 — Automated matching: prefilter shortlist → LLM scores → matches (2026-06-22)
+- Migration `0007_m4_matches.sql`: per-user `matches` (id, user_id, job_id FK→jobs,
+  score, band, cleared, gaps, analysis, posted_at, model, scored_at; UNIQUE
+  (user_id, job_id)). Per-user RLS: users SELECT only their own; NO write policy
+  for authenticated → service role is the only writer. This is the isolation
+  boundary the shared jobs pool deferred. RUN THIS SQL FIRST, before deploy.
+- `app/matcher.py` `score_shortlist`: for each shortlisted job not already scored
+  for the user, runs the EXISTING scorer (reuses `SCORER_SYSTEM_PROMPT_V1` +
+  `_normalize_score`) on the ~500-char snippet + profile, upserts a match row.
+  Fit score is PURE (recency never factored in); `posted_at` carried for M5.
+- Cost architecture (first automated-LLM milestone): Haiku 4.5 for the scorer
+  (Sonnet reserved for on-demand tailoring); prompt caching on the rubric+profile
+  prefix (only the per-job snippet is uncached) via `llm.run_cached_json_agent`;
+  `usage.log_call` is now model- + cache-aware and logs action `match_score`; the
+  per-user daily cap is respected (score what fits, report `skipped_for_cap`).
+- Trigger: gated `POST /admin/score-matches` (same fail-closed ADMIN_USER_IDS gate
+  as fetch-jobs). It prefilters the user's candidates from the pool (no re-fetch)
+  and scores the shortlist. No scheduler (M5).
+- UI: dedicated `/matches` page (nav link added), SEPARATE from the Scored-jobs
+  tracker. Each match shows role/company, location, score + band, honest
+  cleared/gaps, "View posting →", and "Tailor my resume for this" which deep-links
+  to /score?url=… (the score page auto-runs the on-demand flow). No auto-tailoring.
+- All reads RLS-scoped to the user; writes set user_id explicitly; admin target is
+  JWT-gated. 71 backend tests green; frontend lint/build clean; pre-commit clean.
 
 ## Split score/tailor into two gated steps (2026-06-22)
 - Cost principle made real: scoring is cheap and automatic; tailoring is the

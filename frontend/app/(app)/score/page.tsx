@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { RotatingStatus } from "@/components/RotatingStatus";
 import { backendPost } from "@/lib/api";
@@ -45,6 +45,17 @@ export default function ScorePage() {
   const [approving, setApproving] = useState(false);
   const [approved, setApproved] = useState(false);
 
+  // A Match's "Tailor my resume for this" deep-links here as ?url=…; prefill and
+  // score it right away so the user lands on the result + on-demand tailor step.
+  useEffect(() => {
+    const deepLink = new URLSearchParams(window.location.search).get("url");
+    if (deepLink) {
+      setUrl(deepLink);
+      void run(false, deepLink);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function token(): Promise<string> {
     const supabase = createClient();
     const {
@@ -55,10 +66,11 @@ export default function ScorePage() {
     return session.access_token;
   }
 
-  async function run(force = false) {
+  async function run(force = false, overrideUrl?: string) {
     setError("");
     setNotice("");
-    if (!url.trim() && !text.trim()) {
+    const urlValue = (overrideUrl ?? url).trim();
+    if (!urlValue && !text.trim()) {
       setError("Paste a job link or the posting text to score it.");
       return;
     }
@@ -68,7 +80,7 @@ export default function ScorePage() {
         "/ondemand/score",
         await token(),
         {
-          url: url.trim() || null,
+          url: urlValue || null,
           text: text.trim() || null,
           force,
         },

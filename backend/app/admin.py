@@ -1,14 +1,17 @@
-"""Manual job-fetch trigger (M3) — no scheduler, runs for one user on demand.
+"""Manual, admin-gated triggers (no scheduler) — run for one user on demand.
 
-POST /admin/fetch-jobs fetches per-user from each enabled source (built from that
-user's profile keywords), dedupes into the shared `jobs` pool, and returns a
-generous no-LLM prefilter shortlist. There are NO LLM calls in this milestone.
+POST /admin/fetch-jobs   (M3) fetches per-user from each enabled source, dedupes
+                         into the shared `jobs` pool, returns a no-LLM prefilter
+                         shortlist. No LLM calls.
+POST /admin/score-matches (M4) prefilters the user's candidates from the pool and
+                         LLM-scores that shortlist into the per-user `matches`
+                         table (Haiku + prompt caching; logged as "match_score").
 
-SECURITY: triggering external API calls and writing the shared pool must not be
-open to any authenticated user. The caller's verified-JWT user_id is checked
-against the ADMIN_USER_IDS allowlist; an empty allowlist means no one is allowed
-(fail closed). Admins may run a fetch for themselves or, for the per-user pattern,
-for a given user_id.
+SECURITY: triggering external API calls / LLM spend / pool writes must not be open
+to any authenticated user. The caller's verified-JWT user_id is checked against
+the ADMIN_USER_IDS allowlist; an empty allowlist means no one is allowed (fail
+closed). Admins may run for themselves or, for the per-user pattern, a given
+user_id.
 """
 
 from fastapi import APIRouter, HTTPException
@@ -18,6 +21,7 @@ from app.applog import get_logger
 from app.auth import CurrentUserId
 from app.config import settings
 from app.dedupe import upsert_jobs
+from app.matcher import score_shortlist
 from app.prefilter import DEFAULT_CAP, prefilter
 from app.sources.adzuna import AdzunaSource
 from app.sources.base import FetchResult, JobSource, JobSourceError, SearchCriteria
@@ -35,6 +39,11 @@ class FetchRequest(BaseModel):
     user_id: str | None = None  # admin may target another user; defaults to the caller
     max_days_old: int = 30
     max_pages: int = 2
+
+
+class ScoreMatchesRequest(BaseModel):
+    user_id: str | None = None  # admin may target another user; defaults to the caller
+    candidate_limit: int = 500  # cap on pool rows to prefilter (cost/perf bound)
 
 
 def is_admin(user_id: str) -> bool:
@@ -139,4 +148,61 @@ def fetch_jobs(caller_id: CurrentUserId, body: FetchRequest) -> dict:
             }
             for job in shortlist
         ],
+    }
+
+
+@router.post("/score-matches")
+def score_matches(caller_id: CurrentUserId, body: ScoreMatchesRequest) -> dict:
+    """M4: prefilter the target user's candidates from the shared pool, then
+    LLM-score that shortlist into the per-user `matches` table. Does NOT re-fetch
+    from sources (run /admin/fetch-jobs first to populate the pool). Same
+    fail-closed admin gate as /admin/fetch-jobs."""
+    if not is_admin(caller_id):
+        logger.warning("score-matches denied: caller=%s not in admin allowlist", caller_id[:8])
+        raise HTTPException(status_code=403, detail="Not authorized to trigger scoring.")
+
+    target_user_id = (body.user_id or caller_id).strip()
+    client = get_service_client()
+    parsed = _load_parsed(client, target_user_id)
+    target_roles = [r for r in (parsed.get("target_roles") or []) if r.strip()]
+    if not target_roles:
+        return {
+            "status": "no_keywords",
+            "message": "That user has no target roles set, so there is nothing to score against yet.",
+        }
+
+    # Candidate jobs from the shared pool (most recently fetched first), bounded.
+    candidates = (
+        client.table("jobs")
+        .select(
+            "id, source_url, title, company, location_display, location_area, "
+            "remote, description, category, posted_at"
+        )
+        .order("fetched_at", desc=True)
+        .limit(body.candidate_limit)
+        .execute()
+        .data
+        or []
+    )
+    if not candidates:
+        return {
+            "status": "no_jobs",
+            "message": "The jobs pool is empty for now — run /admin/fetch-jobs first.",
+        }
+
+    # Stage 1: cheap no-LLM prefilter → generous shortlist. Stage 2: LLM-score it.
+    shortlist = prefilter(parsed, candidates, cap=DEFAULT_CAP)
+    summary = score_shortlist(client, target_user_id, parsed, shortlist)
+    logger.info(
+        "score-matches done: admin=%s target=%s candidates=%s %s",
+        caller_id[:8],
+        target_user_id[:8],
+        len(candidates),
+        summary,
+    )
+    return {
+        "status": "ok",
+        "target_user": target_user_id[:8],
+        "candidates": len(candidates),
+        **summary,
     }

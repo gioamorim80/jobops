@@ -1,5 +1,35 @@
 # CHANGELOG
 
+## 2026-06-22 — M4: automated matching (prefilter shortlist → LLM scores → matches)
+- New per-user `matches` table (migration `0007_m4_matches.sql`): id, user_id,
+  job_id (FK→jobs), score, band, cleared, gaps, analysis, posted_at, model,
+  scored_at; UNIQUE (user_id, job_id). Per-user RLS — users SELECT only their own
+  rows; no write policy for authenticated, so only the backend service role writes
+  (it bypasses RLS). This is the tenant-isolation boundary the shared, non-RLS
+  jobs pool deferred. Run the migration BEFORE deploying the code.
+- Backend `app/matcher.py`: scores each shortlisted job not yet scored for the
+  user, reusing the EXISTING honest scorer (same `SCORER_SYSTEM_PROMPT_V1` and
+  `_normalize_score`) on the ~500-char snippet + profile, and upserts a match. The
+  fit score stays pure — recency/posted_at is never mixed in; posted_at is carried
+  onto the row only so M5 can rank by recency separately.
+- Cost architecture, all on from the start: the scorer runs on Haiku 4.5 (Sonnet
+  stays reserved for on-demand tailoring); prompt caching marks the rubric+profile
+  prefix so only the per-job snippet is uncached (`llm.run_cached_json_agent`);
+  `usage.log_call` is now model- and cache-aware and logs action `match_score`,
+  so Haiku + caching savings show up in usage_log; the per-user daily cap is
+  respected — a run scores what fits and reports `skipped_for_cap`, never crashing.
+- Trigger: gated `POST /admin/score-matches` (same fail-closed ADMIN_USER_IDS gate
+  as fetch-jobs) prefilters the user's candidates from the pool and scores the
+  shortlist. No scheduler (that is M5), no email, no auto-tailoring.
+- Frontend: a dedicated `/matches` section (new nav link), separate from the
+  Scored-jobs tracker. Each match shows role/company, location, score + band,
+  honest cleared/gaps, a "View posting →" link, and a "Tailor my resume for this"
+  button that deep-links into the on-demand score+tailor flow (`/score?url=…`,
+  which now auto-runs). Tailoring stays gated behind the click.
+- Multi-tenant throughout: matches RLS, RLS-scoped reads, user_id from the verified
+  JWT (admin target is gated). 71 backend tests pass; frontend lint + build clean;
+  pre-commit clean.
+
 ## 2026-06-22 — Split "Score a job" into two gated steps (score, then tailor)
 - Enforces the core cost principle: scoring is cheap and automatic; tailoring is
   the expensive Sonnet step and is now gated behind explicit user intent. Before,

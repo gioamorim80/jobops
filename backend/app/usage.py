@@ -9,10 +9,16 @@ from typing import Any
 
 from supabase import Client
 
-# Coarse USD-per-token estimate for the cost log (defaults to Sonnet 4.6 pricing:
-# $3 / 1M input, $15 / 1M output). This is a logging estimate, not billing.
-_PRICE_IN = 3.0 / 1_000_000
-_PRICE_OUT = 15.0 / 1_000_000
+# Coarse USD-per-token estimates for the cost log (a logging estimate, not
+# billing). Per-model (input, output) price per token; default = Sonnet 4.6.
+_PRICING: dict[str, tuple[float, float]] = {
+    "claude-sonnet-4-6": (3.0 / 1_000_000, 15.0 / 1_000_000),
+    "claude-haiku-4-5": (1.0 / 1_000_000, 5.0 / 1_000_000),
+}
+_DEFAULT_PRICING = _PRICING["claude-sonnet-4-6"]
+# Prompt-cache multipliers on the input price: reads ~0.1x, writes ~1.25x.
+_CACHE_READ_MULT = 0.1
+_CACHE_WRITE_MULT = 1.25
 
 
 def _today_start_iso() -> str:
@@ -36,15 +42,30 @@ def count_calls_today(client: Client, user_id: str, action: str | None = None) -
     return query.execute().count or 0
 
 
-def log_call(client: Client, user_id: str, action: str, usage: Any) -> None:
-    tokens_in = int(getattr(usage, "input_tokens", 0) or 0)
+def log_call(
+    client: Client, user_id: str, action: str, usage: Any, *, model: str | None = None
+) -> None:
+    """Log one agent call. `model` selects pricing (default Sonnet). Prompt-cache
+    tokens are priced at their discounted multipliers, so a cached match_score row
+    shows a much smaller cost_estimate than an uncached one — making the Haiku +
+    caching savings visible. `tokens_in` records the full input the model saw
+    (fresh input + cache reads + cache writes)."""
+    price_in, price_out = _PRICING.get(model or "", _DEFAULT_PRICING)
+    fresh_in = int(getattr(usage, "input_tokens", 0) or 0)
     tokens_out = int(getattr(usage, "output_tokens", 0) or 0)
-    cost = tokens_in * _PRICE_IN + tokens_out * _PRICE_OUT
+    cache_read = int(getattr(usage, "cache_read_input_tokens", 0) or 0)
+    cache_write = int(getattr(usage, "cache_creation_input_tokens", 0) or 0)
+    cost = (
+        fresh_in * price_in
+        + cache_write * price_in * _CACHE_WRITE_MULT
+        + cache_read * price_in * _CACHE_READ_MULT
+        + tokens_out * price_out
+    )
     client.table("usage_log").insert(
         {
             "user_id": user_id,
             "action": action,
-            "tokens_in": tokens_in,
+            "tokens_in": fresh_in + cache_read + cache_write,
             "tokens_out": tokens_out,
             "cost_estimate": round(cost, 6),
         }
