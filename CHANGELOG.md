@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 2026-06-22 — Handoff: M4 verified live; STATE.md rewritten self-contained
+- M4 verified live: `/admin/score-matches` scored 13 matches on `claude-haiku-4-5`,
+  `usage_log` `match_score` rows came in cheaper than Sonnet `score` rows, the
+  Matches UI renders, and RLS isolation was confirmed.
+- Two findings from the live run, logged as OPEN for next session: (1) the run hit
+  `skipped_for_cap: 17` because `PER_USER_DAILY_LLM_CAP=25` — real spend was about
+  80 cents, so raise the cap to 50–75 (keep a ceiling) and re-run; (2) prompt
+  caching did not engage (`cache_read_tokens: 0` / `cache_write_tokens: 0`) because
+  the rubric + profile prefix is under Haiku's minimum cacheable length — caching
+  is wired but not yet saving (still cheap Haiku rates); enlarge the prefix to
+  clear the minimum.
+- Rewrote STATE.md as a concise, self-contained handoff snapshot (current
+  position, what is done, migrations, open items in priority order, deferred items,
+  operational lessons, and the M5 design sketch). Dated history stays here in
+  CHANGELOG.md. Refined the M5 roadmap entry: single "email me matches" signup (no
+  cadence toggle), signal-gated sends about every two days, recency as a separate
+  digest signal, Batch API for scheduled scoring, sent-state tracking.
+- Reminder for next session: confirm migration 0008 (matches.decision) is applied
+  in Supabase. Docs-only change; no code touched.
+
 ## 2026-06-22 — M4 polish: score / band / decision consistency
 - The scorer logic was already correct (decision is a holistic model judgment, not
   a function of the numeric score — two equal scores can legitimately differ).

@@ -120,20 +120,30 @@ Goal: scored matches per user.
 honest rubric on Haiku with caching, and the Matches section shows each user only
 their own (RLS).
 
-## M5 — Scheduled digests + email + guardrails ⬜ PLANNED
-Goal: recurring alerts, safely. **Decision: digests and saved links surface the
-SCORE ONLY** — each match shows its fit score/decision with an on-demand
+## M5 — Scheduled scan + email digest + guardrails ⬜ PLANNED
+Goal: recurring alerts, safely. **Decision: digests surface the SCORE ONLY** —
+each match shows its fit score, band, and decision with an on-demand
 **"Tailor my resume for this"** button in the app. Tailoring is never run
 automatically; the user triggers it when they choose.
-- Scheduler runs the loop on each user's frequency (off / daily / weekly).
-- Digest agent (`docs/agents/DIGEST.md`) composes a score-only summary; Resend
+- **Signup, not cadence.** A single "email me matches" opt-in, with no daily or
+  weekly toggle: the pool is not fresh enough daily to justify a cadence choice.
+- **Signal-gated send.** Send the top-N unsent matches about every two days, and
+  ONLY when there is genuine signal. Do not email mediocre jobs just because time
+  has passed. Track sent state so a match is never emailed twice.
+- **Recency is separate.** Recency is a ranking and flagging signal in the digest,
+  never baked into the fit score (the score stays pure; `matches.posted_at`
+  carries recency).
+- **Cheaper scheduled scoring.** Use the Batch API for the non-interactive
+  scheduled scoring (50 percent off, and it combines with prompt caching once
+  caching engages — see the M4 open item).
+- Digest agent (`docs/agents/DIGEST.md`) composes the score-only summary; Resend
   sends; log to `alerts_log`.
 - Enforce the remaining guardrails (`docs/GUARDRAILS.md`): global monthly budget
   ceiling, rate limiting, pause switch honored. (Per-user daily caps + usage
   logging already shipped in M2.)
-**Done when:** a test user receives a correctly-scoped, score-only digest email
-on schedule, can click through to tailor on demand, and exceeding a cap is
-blocked gracefully.
+**Done when:** a signed-up test user receives a correctly-scoped, score-only
+digest email when there is genuine signal, can click through to tailor on demand,
+a match is never re-sent, and exceeding a cap is blocked gracefully.
 
 ## M6 — Optional capstone ⬜ PLANNED
 Pick any: Telegram digest channel; tailored-resume document export (docx/PDF);
