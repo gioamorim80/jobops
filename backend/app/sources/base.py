@@ -42,9 +42,13 @@ class NormalizedJob(BaseModel):
     remote: bool | None = None
     description: str | None = None
     category: str | None = None
+    category_tag: str | None = None  # stable slug, e.g. "it-jobs"
     salary_min: float | None = None
     salary_max: float | None = None
-    posted_at: str | None = None  # ISO 8601 timestamp
+    salary_is_predicted: bool | None = None  # True = Adzuna estimate, not advertised
+    contract_time: str | None = None  # full_time / part_time
+    contract_type: str | None = None  # permanent / contract
+    posted_at: str | None = None  # ISO 8601 timestamp (validated; None if unparseable)
 
 
 class FetchResult(BaseModel):

@@ -23,6 +23,9 @@ _VALID = {
     "category": {"label": "IT Jobs", "tag": "it-jobs"},
     "salary_min": 150000,
     "salary_max": 200000,
+    "salary_is_predicted": "1",
+    "contract_time": "full_time",
+    "contract_type": "permanent",
     "created": "2026-06-20T12:00:00Z",
 }
 
@@ -48,6 +51,23 @@ def test_normalize_maps_redirect_url_to_source_url_and_detects_remote() -> None:
     assert normalized.location_area == ["US", "California", "San Francisco"]
     assert normalized.remote is True  # "remote" appears in the description
     assert normalized.category == "IT Jobs"
+    assert normalized.category_tag == "it-jobs"  # stable slug kept alongside label
+    assert normalized.salary_is_predicted is True  # Adzuna "1" -> True
+    assert normalized.contract_time == "full_time"
+    assert normalized.contract_type == "permanent"
+    assert normalized.posted_at is not None  # created parsed to a real timestamp
+
+
+def test_salary_predicted_zero_maps_false() -> None:
+    raw = {**_VALID, "salary_is_predicted": "0"}
+    assert AdzunaSource()._normalize(AdzunaJob.model_validate(raw)).salary_is_predicted is False
+
+
+def test_unparseable_created_becomes_null_not_a_crash() -> None:
+    raw = {**_VALID, "created": "not-a-date"}
+    normalized = AdzunaSource()._normalize(AdzunaJob.model_validate(raw))
+    # One bad date must not break the row (or the batch); it just stores null.
+    assert normalized.posted_at is None
 
 
 def test_fetch_without_credentials_fails_loudly(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -42,12 +42,25 @@ users both match is stored once.
 - `location_area` jsonb            -- e.g. ["US", "California", "San Francisco"]
 - `remote` boolean                 -- best-effort
 - `description` text               -- Adzuna truncates to ~500 chars; stored as-is
-- `category` text
+- `category` / `category_tag` text -- human label + stable slug (e.g. 'it-jobs')  [0005]
 - `salary_min` / `salary_max` numeric (nullable)
-- `posted_at` timestamptz
+- `salary_is_predicted` boolean    -- True = Adzuna estimate, NOT advertised pay  [0005]
+- `contract_time` text             -- full_time / part_time  [0005]
+- `contract_type` text             -- permanent / contract  [0005]
+- `posted_at` timestamptz          -- parsed/validated in the adapter; null if unparseable
 - `content_hash` text UNIQUE       -- dedupe key (one row per posting)
 - `fetched_at` timestamptz default now()  -- updated on re-fetch, never a dupe
 - indexes on `posted_at` and `source`
+
+Notes:
+- `salary_is_predicted` is persisted next to the salary because Adzuna salaries
+  are usually Adzuna's own ESTIMATE, not figures from the posting. M4 TODO: the
+  scorer must treat a predicted salary as a rough estimate and must NOT apply a
+  hard salary-floor penalty based on an Adzuna prediction.
+- `description` here is the ~500-char Adzuna excerpt. M4 TODO: decide whether to
+  re-fetch the full job description via `source_url` before LLM scoring. The
+  existing M2 paste-a-link flow is the intended path for full-text on-demand
+  scoring and tailoring of a scanned job.
 
 ### matches  (per-user, RLS) — from the automated pipeline
 - `id` uuid PK

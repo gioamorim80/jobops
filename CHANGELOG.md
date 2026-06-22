@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## 2026-06-21 — M3 audit fixes: Adzuna field mapping
+- Migration `0005` adds nullable columns to `jobs`: `salary_is_predicted`
+  (boolean), `contract_time`, `contract_type`, `category_tag`. No new grants
+  needed (added columns on an existing table; 0004 grants + RLS cover them).
+- Adapter: the strict `AdzunaJob` model and `NormalizedJob` now capture
+  `salary_is_predicted` (Adzuna "1"/"0" → bool), `contract_time`, `contract_type`,
+  and `category.tag` (kept alongside the existing `category.label`).
+- `created` is now parsed/validated in the adapter to a canonical timestamp; if it
+  doesn't parse, `posted_at` is set null and logged, so one bad date can never
+  fail the whole upsert batch (Postgres would otherwise reject the batch cast).
+- `salary_is_predicted` is always persisted next to the salary. DATA_MODEL.md and
+  ROADMAP M4 note that the M4 scorer must treat a predicted salary as a rough
+  estimate and never apply a hard salary-floor penalty on an Adzuna prediction.
+- Robustness: kept `extra="ignore"` (not `forbid` — Adzuna adds fields routinely).
+  Extended the batch sanity-check to also WARN when `title`/`description` is empty
+  across a high fraction of a batch — catching an optional-but-important field
+  going systematically missing (a likely rename/format change), not just the
+  zero-results case.
+- Left the ~500-char description as-is for M3; documented (DATA_MODEL.md, ROADMAP
+  M4) that M4 should decide whether to re-fetch the full JD via `source_url`, and
+  that the M2 paste-a-link flow is the path for full-text on-demand scoring.
+- Still zero LLM calls. 39 backend tests pass; pre-commit green.
+
 ## 2026-06-21 — M3: per-user job-source ingestion, dedupe, no-LLM prefilter
 - Schema: migration `0004` adds the shared `jobs` pool of public postings. It
   holds no user data, so it is intentionally not per-user RLS: authenticated read,

@@ -100,6 +100,13 @@ test profile, all with no model calls.
 Goal: scored matches per user.
 - For each active user: prefilter shortlist → LLM-score → store `matches`.
 - Matches dashboard in the frontend (sortable by fit, filter by decision).
+- Carried over from M3: the pooled `description` is only Adzuna's ~500-char
+  excerpt, so decide whether to re-fetch the full JD via `source_url` before
+  scoring. The existing M2 paste-a-link flow is the intended path for full-text
+  on-demand scoring and tailoring of a scanned job.
+- Carried over from M3: treat `salary_is_predicted = true` rows as rough Adzuna
+  estimates, not advertised pay — never apply a hard salary-floor penalty on a
+  prediction.
 **Done when:** the pipeline produces stored, per-user matches and the dashboard
 shows each user only their own.
 

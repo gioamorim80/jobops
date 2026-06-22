@@ -8,6 +8,7 @@ source skipped) rather than silently storing garbage.
 """
 
 import time
+from datetime import UTC, datetime
 
 import httpx
 from pydantic import BaseModel, Field, ValidationError
@@ -29,6 +30,9 @@ _PAGE_DELAY_S = 1.0  # be polite between page calls
 _TIMEOUT_S = 15.0
 _MAX_KEYWORDS = 3  # bound the number of role queries per fetch
 _HIGH_FAILURE_RATE = 0.5
+# If a load-bearing-but-optional field is empty across this fraction of a batch,
+# warn: a likely sign the field was renamed/dropped upstream (a format change).
+_MISSING_FIELD_RATE = 0.5
 _REMOTE_HINTS = ("remote", "work from home", "wfh", "work-from-home")
 
 
@@ -57,6 +61,9 @@ class AdzunaJob(BaseModel):
     category: _AdzunaCategory | None = None
     salary_min: float | None = None
     salary_max: float | None = None
+    salary_is_predicted: str | None = None  # Adzuna sends "1"/"0"
+    contract_time: str | None = None  # full_time / part_time
+    contract_type: str | None = None  # permanent / contract
     created: str | None = None  # ISO posted time
 
 
@@ -67,6 +74,32 @@ class AdzunaEnvelope(BaseModel):
 
 def _missing(exc: ValidationError) -> str:
     return ", ".join(".".join(str(p) for p in e["loc"]) for e in exc.errors())
+
+
+def _parse_created(value: str | None, job_id: str) -> str | None:
+    """Validate Adzuna's `created` to a real timestamp in the adapter. Return a
+    canonical ISO string, or None (logged) if it doesn't parse — so one bad date
+    can never fail the whole upsert batch when Postgres casts to timestamptz."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        logger.warning(
+            "adzuna: unparseable created=%r for job id=%s; storing posted_at=null", value, job_id
+        )
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.isoformat()
+
+
+def _salary_predicted(value: str | None) -> bool | None:
+    if value == "1":
+        return True
+    if value == "0":
+        return False
+    return None
 
 
 class AdzunaSource(JobSource):
@@ -118,7 +151,25 @@ class AdzunaSource(JobSource):
                 result.parse_failures,
                 result.raw_count,
             )
+        self._warn_on_missing_fields(result.jobs)
         return result
+
+    def _warn_on_missing_fields(self, jobs: list[NormalizedJob]) -> None:
+        """Catch an optional-but-important field going systematically missing
+        (a likely rename/format change), not just the zero-results case."""
+        total = len(jobs)
+        if not total:
+            return
+        for field in ("title", "description"):
+            empty = sum(1 for job in jobs if not (getattr(job, field) or "").strip())
+            if empty / total > _MISSING_FIELD_RATE:
+                logger.warning(
+                    "adzuna: %s empty on %s/%s parsed jobs — field may have been"
+                    " renamed/dropped upstream (format change)",
+                    field,
+                    empty,
+                    total,
+                )
 
     def _get_page(
         self, client: httpx.Client, keyword: str, criteria: SearchCriteria, page: int
@@ -174,7 +225,11 @@ class AdzunaSource(JobSource):
             remote=remote,
             description=job.description,
             category=job.category.label if job.category else None,
+            category_tag=job.category.tag if job.category else None,
             salary_min=job.salary_min,
             salary_max=job.salary_max,
-            posted_at=job.created,
+            salary_is_predicted=_salary_predicted(job.salary_is_predicted),
+            contract_time=job.contract_time,
+            contract_type=job.contract_type,
+            posted_at=_parse_created(job.created, job.id),
         )

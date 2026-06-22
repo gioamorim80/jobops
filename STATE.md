@@ -4,6 +4,19 @@
 M0, M1, M2, M2.5, M2.6, and M3 are built. M4 through M6 are planned (see
 `ROADMAP.md`). Detailed per-milestone notes below; newest refinements first.
 
+## M3 audit fixes — Adzuna field mapping (2026-06-21)
+- Migration `0005` adds nullable `salary_is_predicted` (bool), `contract_time`,
+  `contract_type`, `category_tag` to `jobs`. No new grants (added columns).
+- Adapter now captures those fields (Adzuna "1"/"0" → bool), keeps `category.label`
+  and adds `category.tag`, and parses `created` defensively in the adapter (null +
+  log if unparseable, so one bad date can't fail the whole upsert batch).
+- Strict validation kept (`extra` ignored, not forbidden); the batch sanity-check
+  now also WARNS when title/description is empty across a high fraction of a batch
+  (a likely upstream rename/format change), not just on zero results.
+- Docs: predicted-salary note + M4 TODO (treat predicted salary as estimate, no
+  hard floor penalty) and the full-JD re-fetch decision (M2 paste path) recorded
+  in DATA_MODEL.md and ROADMAP M4. Still zero LLM.
+
 ## M3 — Job-source ingestion + dedupe + prefilter (2026-06-21)
 - Migration `0004` adds the shared `jobs` pool (public postings, NOT per-user
   RLS: authenticated read, service-role write; `content_hash` unique).
