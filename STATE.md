@@ -5,9 +5,11 @@ Self-contained snapshot for a fresh session. Dated history lives in
 in `ARCHITECTURE.md`. Read CLAUDE.md first (it is the contract).
 
 ## Current position
-M0 through M4 are built and verified live, including the M2 flow polish and the
-M4 decision-consistency fixes. Next milestone is M5 (scheduled scan + email
-digest). Three small OPEN items should be cleared early next session (below).
+M0 through M4 are built and verified live, including the M2 flow polish, the M4
+decision-consistency fixes, and per-call model cost attribution. The scorer LLM
+cap (`PER_USER_DAILY_LLM_CAP`) is default 25 in config.py, set to 50 in prod
+(Railway). M4 core is complete bar one tick: confirm a full scoring run at cap=50.
+Active focus / next milestone is M5 (scheduled scanner + digest + email).
 
 ## Stack and repo (quick orient)
 - Frontend: Next.js App Router + TypeScript on Vercel. Routes under
@@ -21,12 +23,15 @@ digest). Three small OPEN items should be cleared early next session (below).
 - Data/auth: Supabase (Postgres + magic-link + storage + RLS). Backend uses the
   service-role key only; frontend uses the anon key only.
 - Models: `claude-sonnet-4-6` for onboarding, on-demand scorer, tailor, and coach;
-  `claude-haiku-4-5` for the M4 automated matcher. Env in `config.py`:
-  `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADZUNA_APP_ID`,
-  `ADZUNA_APP_KEY`, `ADMIN_USER_IDS` (comma-separated; empty = fail closed),
-  `PER_USER_DAILY_LLM_CAP` (default 25), `ENRICH_DAILY_TURN_CAP` (default 50),
+  `claude-haiku-4-5` for the M4 automated matcher. Each step pins its model as a
+  code constant (`SCORE_MODEL`/`TAILOR_MODEL`/`ENRICH_MODEL`/`MATCH_MODEL`) that
+  drives both the API call and the `usage_log.model` row, so cost is attributable
+  per model. Env in `config.py`: `ANTHROPIC_API_KEY`, `SUPABASE_URL`,
+  `SUPABASE_SERVICE_ROLE_KEY`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `ADMIN_USER_IDS`
+  (comma-separated; empty = fail closed), `PER_USER_DAILY_LLM_CAP` (default 25 in
+  config.py, set to 50 in prod (Railway)), `ENRICH_DAILY_TURN_CAP` (default 50),
   `CORS_ORIGINS`. Live domain: myjobops.app.
-- Checks before commit: `uv run pytest` (73 backend tests), `uv run ruff check`,
+- Checks before commit: `uv run pytest` (78 backend tests), `uv run ruff check`,
   frontend `npm run lint` + `npm run build`, and `pre-commit run --all-files`.
 
 ## Done and verified
@@ -49,7 +54,11 @@ digest). Three small OPEN items should be cleared early next session (below).
   The fit score is pure (recency never factored in). A dedicated `/matches` UI
   section is separate from the scored-jobs tracker. Live run scored 13 matches;
   `usage_log` shows `match_score` rows cheaper than Sonnet `score` rows; RLS
-  confirmed.
+  confirmed. The scorer LLM cap is now 50 (was 25, which skipped 17 jobs in one
+  run): `PER_USER_DAILY_LLM_CAP`, default 25 in config.py, set to 50 in prod
+  (Railway). Each call's serving model is recorded in `usage_log.model` (migration
+  0009), so cost is attributed per model. M4 core is complete bar one tick: a full
+  scoring run at cap=50.
 - **M4 decision-consistency fixes (migration 0008).** Band 50–64 relabeled
   "Stretch" → "Moderate fit" (kills the band/decision word collision); the decision
   chip is framed "Decision: APPLY/STRETCH/SKIP" on `/score`, `/scored/[id]`, and
@@ -62,25 +71,22 @@ digest). Three small OPEN items should be cleared early next session (below).
 Run in the Supabase SQL editor; all idempotent. Applied: 0001 (profiles +
 preferences), 0002 (tailorings + usage_log), 0003 (tailorings.applied_at), 0004
 (jobs pool), 0005 (jobs extra fields: salary_is_predicted, contract_time/type,
-category_tag), 0006 (tailorings role/company), 0007 (matches table). **Confirm
-0008 (matches.decision column) has been run in Supabase** — it is required for the
-decision-consistency fixes above and should be applied before relying on them.
+category_tag), 0006 (tailorings role/company), 0007 (matches table), 0008
+(matches.decision), 0009 (usage_log.model, nullable, no backfill). 0008 and 0009
+are applied in prod.
 
-## Open — clear early next session (priority order)
-1. **Raise the LLM cap.** `PER_USER_DAILY_LLM_CAP=25` caused `skipped_for_cap: 17`
-   on the M4 run (only 13 of ~30 scored), while real spend was tiny (about 80
-   cents). Bump it to 50–75 in Railway, keeping a ceiling for runaway/abuse
-   protection, then re-run `/admin/score-matches` for a full shortlist.
-2. **Make prompt caching actually engage.** The M4 run showed
-   `cache_read_tokens: 0` / `cache_write_tokens: 0`: the rubric + profile prefix is
-   below Haiku's minimum cacheable length, so caching is wired but not saving
-   (still paying cheap Haiku rates). Enlarge the cached prefix to clear the
-   minimum, or verify the minimum is reachable, and confirm `cache_read_tokens > 0`
-   on a re-run.
-3. **Verify the 0008 fixes on the deployed app.** A 72-scored job should read
-   "72/100 · Solid fit · Decision: STRETCH" with no vocabulary collision, and
-   `/matches` should show the same score + band + decision as `/score` for the same
-   job.
+## Open
+- Confirm a full scoring run at cap=50 has been executed — last tick before sealing
+  M4 core.
+- Low-priority backlog: login email sender → noreply@myjobops.app via Cloudflare
+  routing; clean company/role title on the "recently scored" list.
+
+Resolved this session: raised the LLM cap 25 → 50 (`PER_USER_DAILY_LLM_CAP`, env
+var; default 25 in config.py, set to 50 in prod on Railway); scorer prompt caching
+evaluated and DECLINED (prefix ~1.1k tokens is below Haiku 4.5's 4096 cacheable
+minimum and the per-job text dominates input — caching deferred to the tailor step,
+where a large stable per-user context repeats); the 0008 decision-consistency fixes
+verified live.
 
 ## Deferred (not blocking; intentional)
 - One coherent UX/design pass (hold all UI-polish items for it). Known item:
@@ -107,8 +113,9 @@ Design already sketched:
   genuine signal. Do not email mediocre jobs just because time has passed.
 - Recency is a SEPARATE ranking and flagging signal in the digest, never baked
   into the fit score (the score stays pure; `matches.posted_at` carries recency).
-- Use the Batch API for the scheduled, non-interactive scoring (50 percent off,
-  and it combines with prompt caching once caching engages).
+- Use the Batch API for the scheduled, non-interactive scoring (50 percent off).
+  Prompt caching does not help the scorer (prefix below the cacheable minimum); it
+  is deferred to the tailor step.
 - Track sent state so a match is not emailed twice.
 - Email via Resend; respect the remaining guardrails in `docs/GUARDRAILS.md`
   (global monthly budget ceiling, pause switch). Agent spec in

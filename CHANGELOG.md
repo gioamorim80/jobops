@@ -1,5 +1,52 @@
 # CHANGELOG
 
+## 2026-06-22 — Close M4 open items: LLM cap raised, caching declined, per-call model recorded
+
+**What was done**
+- Closed the two open M4 items. Raised the scorer LLM cap from 25 to 50:
+  `PER_USER_DAILY_LLM_CAP` (default 25 in config.py, set to 50 in prod (Railway)),
+  so a full ~30-job shortlist scores in one run; kept a ceiling for runaway/abuse
+  protection.
+- Evaluated prompt caching on the scorer and DECLINED it (see decisions).
+- Added a `model` column to `usage_log` (migration 0009, nullable, no backfill).
+  Made the score, tailor, and enrich steps pass their model explicitly via per-step
+  constants (`SCORE_MODEL` / `TAILOR_MODEL` / `ENRICH_MODEL` = `claude-sonnet-4-6`),
+  mirroring `matcher.py`'s `MATCH_MODEL`. Each constant now drives BOTH the Anthropic
+  call and the `usage_log` row from one source, so per-call cost is attributable by
+  model.
+- Added routing tests (`backend/tests/test_llm.py`) that patch the Anthropic client
+  at the lowest layer and prove the passed model wins over `settings.anthropic_model`.
+  Suite went 73 → 78 passing.
+- Migration 0009 applied to prod by hand; commit 7e92ce2 shipped, CI run #39 green;
+  verified live — a post-deploy `score` row recorded `claude-sonnet-4-6` while
+  pre-deploy rows stay NULL as designed.
+
+**Decisions (with the why)**
+- Scorer prompt caching declined: the scorer prefix (~1.1k tokens) is below the
+  cacheable minimum (Haiku 4.5 = 4096 tokens), and the per-job posting text
+  dominates the input anyway, so caching there would save almost nothing. Caching is
+  deferred to the TAILOR step, where a large stable per-user context (profile + base
+  resume + rubric) repeats across calls and clears the minimum.
+- Per-call model is now recorded from a single source that drives both the API call
+  and the log, replacing two independent env fallbacks that agreed only by
+  coincidence and could silently drift if the global default changed.
+- Per-step model is a CODE CONSTANT, not an env var: model changes are now
+  versioned, CI-gated, and leave a git trace. Chose auditability over the
+  flexibility of an `ANTHROPIC_MODEL` override, on purpose. (The per-user LLM cap, by
+  contrast, stays an env var — `PER_USER_DAILY_LLM_CAP`, default 25 in config.py, set
+  to 50 in prod (Railway) — because an operational throttle should be tunable without
+  a deploy.)
+- `usage_log.model` is nullable with no backfill; pre-existing rows stay NULL.
+
+**Open items**
+- Confirm a full scoring run at cap=50 has been executed (last tick before sealing
+  M4 core).
+- Low-priority backlog (unchanged): login email sender → noreply@myjobops.app via
+  Cloudflare routing; clean company/role title on the "recently scored" list.
+
+**Next step**
+- M5: the automated scanner/digest loop with email delivery.
+
 ## 2026-06-22 — Handoff: M4 verified live; STATE.md rewritten self-contained
 - M4 verified live: `/admin/score-matches` scored 13 matches on `claude-haiku-4-5`,
   `usage_log` `match_score` rows came in cheaper than Sonnet `score` rows, the
