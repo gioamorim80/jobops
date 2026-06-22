@@ -109,6 +109,7 @@ export interface Match {
   id: string;
   score: number | null;
   band: string | null;
+  decision: Decision | null;
   cleared: string[] | null;
   gaps: string[] | null;
   analysis: string | null;

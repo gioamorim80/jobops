@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 2026-06-22 — M4 polish: score / band / decision consistency
+- The scorer logic was already correct (decision is a holistic model judgment, not
+  a function of the numeric score — two equal scores can legitimately differ).
+  These were the presentation/storage gaps around it:
+- Vocabulary collision: the fit band's 50–64 label was "Stretch", which read as
+  contradictory next to the separate STRETCH decision. Renamed the band to
+  "Moderate fit" (in both frontend `fitBand` and backend `matcher.score_band`), and
+  framed the decision chip as "Decision: APPLY/STRETCH/SKIP" on /score, /scored/[id],
+  and /matches so the fit band and the decision read as two different axes.
+- Cross-path drift: the `matches` table (0007) stored band but no decision, so
+  /matches showed only a band while /score showed band + decision for the same job.
+  Migration `0008_matches_decision.sql` adds a nullable `decision` column; the
+  matcher now stores it and /matches renders it. Run 0008 BEFORE deploying. Rows
+  scored before it keep decision = NULL and simply omit the chip until re-scored.
+- Silent fallback: `_normalize_score` still defaults a missing/invalid decision to
+  STRETCH (never crashes) but now logs a WARNING with the offending value, so a
+  malformed scorer reply is surfaced rather than masked.
+- No change to the scorer rubric. 73 backend tests pass; frontend lint + build
+  clean; pre-commit clean.
+
 ## 2026-06-22 — M4: automated matching (prefilter shortlist → LLM scores → matches)
 - New per-user `matches` table (migration `0007_m4_matches.sql`): id, user_id,
   job_id (FK→jobs), score, band, cleared, gaps, analysis, posted_at, model,

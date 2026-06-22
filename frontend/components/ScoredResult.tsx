@@ -35,7 +35,7 @@ export function ScoredResult({
           </span>
           <span className="band">{fitBand(score.fit)}</span>
           <span className={decisionClass[score.decision] ?? "decision"}>
-            {score.decision}
+            Decision: {score.decision}
           </span>
           {approved && (
             <span className="decision decision-apply">Approved</span>

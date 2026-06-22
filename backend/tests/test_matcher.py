@@ -9,8 +9,11 @@ def test_score_band_thresholds_match_frontend() -> None:
     assert score_band(90) == "Strong fit"
     assert score_band(65) == "Solid fit"
     assert score_band(79) == "Solid fit"
-    assert score_band(50) == "Stretch"
-    assert score_band(64) == "Stretch"
+    # 50–64 band is "Moderate fit", NOT "Stretch" — that word is reserved for the
+    # separate STRETCH decision label (avoids the vocabulary collision).
+    assert score_band(50) == "Moderate fit"
+    assert score_band(64) == "Moderate fit"
+    assert "Stretch" not in {score_band(s) for s in range(0, 101)}
     assert score_band(49) == "Likely skip"
     assert score_band(0) == "Likely skip"
 

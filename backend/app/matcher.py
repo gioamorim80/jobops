@@ -41,13 +41,15 @@ _SCORE_MAX_TOKENS = 1200
 
 def score_band(fit: int) -> str:
     """Qualitative band for a 0–100 fit. Mirrors the frontend `fitBand` so an
-    automated match reads with the same verdict as an on-demand score."""
+    automated match reads with the same verdict as an on-demand score. The band
+    describes fit quality only — it deliberately avoids the word "Stretch" so it
+    never collides with the separate STRETCH decision label."""
     if fit >= 80:
         return "Strong fit"
     if fit >= 65:
         return "Solid fit"
     if fit >= 50:
-        return "Stretch"
+        return "Moderate fit"
     return "Likely skip"
 
 
@@ -117,6 +119,9 @@ def score_shortlist(client, user_id: str, parsed: dict, shortlist: list[dict]) -
                 "job_id": job["id"],
                 "score": score["fit"],
                 "band": score_band(score["fit"]),
+                "decision": score[
+                    "decision"
+                ],  # the scorer's holistic call (not derived from score)
                 "cleared": score["cleared"],
                 "gaps": score["gaps"],
                 "analysis": score["pitch"],  # one honest line; recency NOT in the score

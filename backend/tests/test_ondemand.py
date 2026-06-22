@@ -7,7 +7,7 @@ the manual end-to-end test in the M2 docs.
 import pytest
 from app.jobfetch import extract_main_text
 from app.main import app
-from app.ondemand import _applied_at_iso, _clean_label
+from app.ondemand import _applied_at_iso, _clean_label, _normalize_score
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
@@ -69,6 +69,22 @@ def test_clean_label_trims_collapses_and_caps() -> None:
     assert _clean_label(None) == ""  # nothing extracted -> empty, never fabricated
     assert _clean_label("") == ""
     assert len(_clean_label("x" * 500)) == 140  # capped
+
+
+def test_normalize_score_preserves_valid_decision() -> None:
+    # decision is the model's holistic call, carried through verbatim (not derived
+    # from the fit number).
+    assert _normalize_score({"fit": 72, "decision": "apply"})["decision"] == "APPLY"
+    assert _normalize_score({"fit": 72, "decision": "STRETCH"})["decision"] == "STRETCH"
+
+
+def test_normalize_score_invalid_decision_defaults_and_logs(caplog) -> None:
+    # A missing/garbled decision falls back to STRETCH but is surfaced (logged),
+    # never silently swallowed.
+    with caplog.at_level("WARNING"):
+        result = _normalize_score({"fit": 72, "decision": "MAYBE"})
+    assert result["decision"] == "STRETCH"
+    assert any("invalid decision" in r.message for r in caplog.records)
 
 
 def test_extract_main_text_pulls_article_body() -> None:

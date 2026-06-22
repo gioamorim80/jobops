@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import type { Match } from "@/lib/types";
-import { jobLabel } from "@/lib/ui";
+import { decisionClass, jobLabel } from "@/lib/ui";
 
 function MiniList({ items, empty }: { items: string[] | null; empty: string }) {
   if (!items || items.length === 0) return <p className="faint">{empty}</p>;
@@ -37,7 +37,7 @@ export default async function MatchesPage() {
   const { data, error } = await supabase
     .from("matches")
     .select(
-      "id, score, band, cleared, gaps, analysis, posted_at, jobs ( title, company, location_display, source_url )",
+      "id, score, band, decision, cleared, gaps, analysis, posted_at, jobs ( title, company, location_display, source_url )",
     )
     .order("score", { ascending: false })
     .limit(50);
@@ -87,6 +87,11 @@ export default async function MatchesPage() {
                 <div className="scored-meta">
                   <span className="scored-fit">{m.score ?? "—"}</span>
                   {m.band && <span className="band">{m.band}</span>}
+                  {m.decision && (
+                    <span className={decisionClass[m.decision]}>
+                      Decision: {m.decision}
+                    </span>
+                  )}
                 </div>
               </div>
 

@@ -30,6 +30,7 @@ from agents.tailor import TAILOR_SYSTEM_PROMPT_V1
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from app.applog import get_logger
 from app.auth import CurrentUserId
 from app.config import settings
 from app.jobfetch import MAX_JOB_CHARS, UnreadableLink, fetch_job_text
@@ -38,6 +39,7 @@ from app.supabase_client import get_service_client
 from app.usage import count_calls_today, log_call
 
 router = APIRouter(prefix="/ondemand", tags=["ondemand"])
+logger = get_logger("jobops.ondemand")
 
 
 # --------------------------------- models -------------------------------------
@@ -90,8 +92,18 @@ def _normalize_score(data: dict) -> dict:
     except (TypeError, ValueError):
         fit = 0
     fit = max(0, min(100, fit))
-    decision = str(data.get("decision", "")).strip().upper()
+    raw_decision = str(data.get("decision", "")).strip().upper()
+    decision = raw_decision
     if decision not in {"APPLY", "STRETCH", "SKIP"}:
+        # The scorer should always emit a valid decision; if it doesn't, fall back
+        # to STRETCH (don't crash) but surface it — a silent default would mask a
+        # malformed reply and make two equal scores diverge for a non-substantive
+        # reason. Note: not raw text/PII, just the offending label.
+        logger.warning(
+            "scorer returned missing/invalid decision %r (fit=%s); defaulting to STRETCH",
+            raw_decision,
+            fit,
+        )
         decision = "STRETCH"
     return {
         "fit": fit,

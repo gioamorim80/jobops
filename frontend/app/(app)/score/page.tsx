@@ -210,7 +210,7 @@ export default function ScorePage() {
             </span>
             <span className="band">{fitBand(score.fit)}</span>
             <span className={decisionClass[score.decision]}>
-              {score.decision}
+              Decision: {score.decision}
             </span>
           </div>
           {score.pitch && <p style={{ marginTop: "1rem" }}>{score.pitch}</p>}
