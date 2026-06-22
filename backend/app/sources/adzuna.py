@@ -7,6 +7,7 @@ strict Pydantic models: a structural change fails loudly to the operator (logged
 source skipped) rather than silently storing garbage.
 """
 
+import re
 import time
 from datetime import UTC, datetime
 
@@ -34,6 +35,117 @@ _HIGH_FAILURE_RATE = 0.5
 # warn: a likely sign the field was renamed/dropped upstream (a format change).
 _MISSING_FIELD_RATE = 0.5
 _REMOTE_HINTS = ("remote", "work from home", "wfh", "work-from-home")
+
+# Adzuna geocodes `where` from a place name; a metro label like "NYC Metro Area"
+# resolves to nothing and returns zero jobs. We normalize a user's free-text
+# location label to a clean city centre and search that centre + a radius. The
+# radius makes a single city stand in for its commuter metro.
+_DISTANCE_KM = 45  # ~metro radius around the resolved city centre
+
+# Known metro/abbreviation labels that need an explicit map to a city centre
+# (suffix-stripping alone won't get there). Keys are normalized (lowercased,
+# punctuation collapsed to spaces).
+_METRO_ALIASES = {
+    "nyc": "New York",
+    "nyc metro": "New York",
+    "nyc metro area": "New York",
+    "new york metro": "New York",
+    "new york metro area": "New York",
+    "new york city": "New York",
+    "sf": "San Francisco",
+    "sf bay area": "San Francisco",
+    "bay area": "San Francisco",
+    "san francisco bay area": "San Francisco",
+    "silicon valley": "San Francisco",
+    "greater boston": "Boston",
+    "greater los angeles": "Los Angeles",
+    "la": "Los Angeles",
+    "dc": "Washington",
+    "washington dc": "Washington",
+    "washington dc metro": "Washington",
+    "dmv": "Washington",
+}
+
+# Labels that mean "no geographic filter" (handle remote/anywhere via remote_pref,
+# not as a place name Adzuna would fail to geocode).
+_DROP_LOCATIONS = {
+    "remote",
+    "anywhere",
+    "us",
+    "usa",
+    "united states",
+    "united states of america",
+    "worldwide",
+    "global",
+    "nationwide",
+}
+
+# Metro-style decorations stripped from an otherwise-plain city name.
+_METRO_SUFFIXES = (
+    " metropolitan area",
+    " metro area",
+    " metropolitan",
+    " metro",
+    " area",
+    " region",
+)
+
+# Remote-preference values that mean "search remote nationwide, don't pin a city".
+_REMOTE_PREFS = {"remote", "remote only", "fully remote", "remote-only"}
+
+
+def _normalize_location(raw: str | None) -> str | None:
+    """Turn a free-text profile location into a clean, geocodable place name for
+    Adzuna's `where`, or None when it can't be confidently resolved (caller then
+    omits `where` and searches without a location filter).
+
+    Handles aliases ("NYC Metro Area" -> "New York"), strips metro-style
+    decorations ("Greater Boston" -> "Boston"), passes plain cities through, and
+    drops "remote"/"US"/"anywhere"-style labels (those are not a place to geocode).
+    """
+    if not raw:
+        return None
+    s = re.sub(r"[^a-z0-9 ]", " ", raw.lower())
+    s = re.sub(r"\s+", " ", s).strip()
+    if not s or s in _DROP_LOCATIONS:
+        return None
+    if s in _METRO_ALIASES:
+        return _METRO_ALIASES[s]
+    if s.startswith("greater "):
+        s = s[len("greater ") :].strip()
+    for suffix in _METRO_SUFFIXES:
+        if s.endswith(suffix):
+            s = s[: -len(suffix)].strip()
+            break
+    if not s or s in _DROP_LOCATIONS:
+        return None
+    if s in _METRO_ALIASES:
+        return _METRO_ALIASES[s]
+    # Looks like a plain place name (letters, with spaces/.'-): use it title-cased.
+    if re.fullmatch(r"[a-z][a-z .'-]*", s):
+        return s.title()
+    return None
+
+
+def _location_params(criteria: SearchCriteria) -> tuple[str | None, int | None]:
+    """Decide Adzuna's `where`/`distance` from a profile's remote preference and
+    location. Remote-preferring users search nationwide (no `where`); everyone
+    else is pinned to their resolved city centre plus a metro radius. A "flexible"
+    preference never excludes remote jobs — Adzuna has no remote filter, so a
+    location search returns both remote- and onsite-tagged postings."""
+    pref = (criteria.remote_pref or "").strip().lower()
+    if pref in _REMOTE_PREFS:
+        return None, None
+    place = _normalize_location(criteria.location)
+    if place is None:
+        if criteria.location:
+            logger.info(
+                "adzuna: location %r not confidently geocodable; omitting `where`"
+                " (searching without a location filter)",
+                criteria.location,
+            )
+        return None, None
+    return place, _DISTANCE_KM
 
 
 # --------- strict models of the documented Adzuna response shape ---------
@@ -171,9 +283,13 @@ class AdzunaSource(JobSource):
                     total,
                 )
 
-    def _get_page(
-        self, client: httpx.Client, keyword: str, criteria: SearchCriteria, page: int
-    ) -> tuple[list[dict], int | None]:
+    def _build_params(self, keyword: str, criteria: SearchCriteria) -> dict:
+        """Build the Adzuna query params from the criteria. Kept separate from the
+        HTTP call so the query shape is unit-testable without a network round-trip.
+
+        Uses a broad `what` keyword (not strict `title_only`) so the fetch stays
+        generous — honest fit is the scorer's job (M4), not the source's.
+        """
         params: dict = {
             "app_id": settings.adzuna_app_id,
             "app_key": settings.adzuna_app_key,
@@ -182,11 +298,29 @@ class AdzunaSource(JobSource):
             "content-type": "application/json",
         }
         if keyword:
-            params["title_only"] = keyword  # role must appear in the title
-        # Respect remote preference: when the user wants remote, don't pin to a
-        # city; otherwise narrow to their location if they gave one.
-        if criteria.location and not criteria.remote:
-            params["where"] = criteria.location
+            params["what"] = keyword  # broad keyword match, not title-only
+        where, distance = _location_params(criteria)
+        if where:
+            params["where"] = where
+            params["distance"] = distance
+        return params
+
+    def _get_page(
+        self, client: httpx.Client, keyword: str, criteria: SearchCriteria, page: int
+    ) -> tuple[list[dict], int | None]:
+        params = self._build_params(keyword, criteria)
+        # Log the exact query we built from the profile (never the credentials).
+        logger.info(
+            "adzuna query: page=%s what=%r where=%r distance=%r"
+            " max_days_old=%s (remote_pref=%r location=%r)",
+            page,
+            params.get("what"),
+            params.get("where"),
+            params.get("distance"),
+            params.get("max_days_old"),
+            criteria.remote_pref,
+            criteria.location,
+        )
 
         try:
             response = client.get(f"{_BASE_URL}/{page}", params=params)

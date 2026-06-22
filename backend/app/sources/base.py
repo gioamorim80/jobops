@@ -21,8 +21,8 @@ class SearchCriteria(BaseModel):
     """What to search for, built from a single user's profile."""
 
     keywords: list[str] = Field(default_factory=list)  # target roles
-    location: str | None = None
-    remote: bool = False
+    location: str | None = None  # raw profile label; the adapter normalizes it
+    remote_pref: str = ""  # raw profile value: "remote" | "flexible" | "on-site" | ...
     max_days_old: int = 30
     max_pages: int = 2  # bounded pages per keyword, to stay polite
     results_per_page: int = 50

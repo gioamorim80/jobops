@@ -1,5 +1,33 @@
 # CHANGELOG
 
+## 2026-06-21 — M3 fix: Adzuna location/remote query (was returning 0 jobs)
+- Cause: the per-user fetch passed the profile location verbatim as Adzuna
+  `where` (e.g. `where='NYC Metro Area'`, which Adzuna cannot geocode → 0
+  results) and mapped remote_pref `flexible` to a hard `remote=False`.
+- Location: new `_normalize_location` turns a free-text profile label into a
+  clean, geocodable city centre, and the adapter passes `distance=45` (km) so a
+  single city covers its commuter metro. Handles aliases (NYC/NYC Metro/New York
+  Metro → New York; SF Bay Area/Bay Area → San Francisco; Greater Boston →
+  Boston), generic metro-suffix stripping (Seattle Metro Area → Seattle), and
+  plain cities pass through. Labels that aren't a geocodable place
+  (remote/US/anywhere, or anything not confidently a city) omit `where` and log
+  the decision, so the fetch falls back to a nationwide search instead of 0.
+- Remote: `SearchCriteria.remote: bool` → `remote_pref: str` (the raw profile
+  value). `remote`/`remote only` searches nationwide (no `where`); `flexible` and
+  `on-site` pin the resolved city centre + radius. A `flexible` preference no
+  longer excludes remote jobs — Adzuna has no remote filter, so a location search
+  returns both remote- and onsite-tagged postings.
+- Generosity: the role keyword now goes to `what` (broad match) instead of strict
+  `title_only`, per the prefilter philosophy (honest fit is M4's job).
+- Logs the exact final params built from the profile (page / what / where /
+  distance / max_days_old / remote_pref / location); credentials are never logged.
+- Query-building/adapter layer only: no migration, no profile-UI change, zero
+  LLM. Tests: 25 source tests (normalization + param building), 58 backend total,
+  all green. Dry-run on the user's profile builds
+  `what='Senior Data Scientist' where='New York' distance=45`; a non-NYC profile
+  (Austin) builds `where='Austin' distance=45`. A live result count needs real
+  Adzuna creds (set on Railway; local .env keys are blank).
+
 ## 2026-06-21 — M3 audit fixes: Adzuna field mapping
 - Migration `0005` adds nullable columns to `jobs`: `salary_is_predicted`
   (boolean), `contract_time`, `contract_type`, `category_tag`. No new grants

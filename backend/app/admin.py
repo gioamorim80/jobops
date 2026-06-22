@@ -70,17 +70,17 @@ def fetch_jobs(caller_id: CurrentUserId, body: FetchRequest) -> dict:
     criteria = SearchCriteria(
         keywords=target_roles,
         location=locations[0] if locations else None,
-        remote=(parsed.get("remote_pref") or "").lower() == "remote",
+        remote_pref=parsed.get("remote_pref") or "",
         max_days_old=body.max_days_old,
         max_pages=body.max_pages,
     )
     logger.info(
-        "fetch-jobs: admin=%s target=%s roles=%s location=%r remote=%s",
+        "fetch-jobs: admin=%s target=%s roles=%s location=%r remote_pref=%r",
         caller_id[:8],
         target_user_id[:8],
         target_roles[:3],
         criteria.location,
-        criteria.remote,
+        criteria.remote_pref,
     )
 
     all_jobs: list[dict] = []

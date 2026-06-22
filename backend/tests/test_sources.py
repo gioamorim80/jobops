@@ -6,7 +6,13 @@ confirm a missing-credentials fetch fails loudly rather than calling out.
 
 import pytest
 from app.config import settings
-from app.sources.adzuna import AdzunaJob, AdzunaSource
+from app.sources.adzuna import (
+    _DISTANCE_KM,
+    AdzunaJob,
+    AdzunaSource,
+    _location_params,
+    _normalize_location,
+)
 from app.sources.base import JobSourceError, SearchCriteria
 from pydantic import ValidationError
 
@@ -75,3 +81,71 @@ def test_fetch_without_credentials_fails_loudly(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(settings, "adzuna_app_key", None)
     with pytest.raises(JobSourceError, match="credentials missing"):
         AdzunaSource().fetch(SearchCriteria(keywords=["engineer"]))
+
+
+# --------- location normalization (the geocodable-`where` fix) ---------
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("NYC Metro Area", "New York"),  # the bug that returned 0 jobs
+        ("NYC", "New York"),
+        ("New York Metro", "New York"),
+        ("SF Bay Area", "San Francisco"),
+        ("Bay Area", "San Francisco"),
+        ("Greater Boston", "Boston"),  # stripped via the "greater " prefix + alias
+        ("Austin", "Austin"),  # plain city passes through
+        ("Austin, TX", "Austin Tx"),  # punctuation collapsed, still a place name
+        ("Seattle Metro Area", "Seattle"),  # generic suffix strip, not a hard-coded alias
+        ("remote", None),  # not a place; handled via remote_pref
+        ("United States", None),  # too broad to geocode
+        ("", None),
+        (None, None),
+        ("12345", None),  # not a confident place name -> omit `where`
+    ],
+)
+def test_normalize_location(raw: str | None, expected: str | None) -> None:
+    assert _normalize_location(raw) == expected
+
+
+def test_location_params_flexible_uses_city_centre_plus_radius() -> None:
+    # "flexible" must NOT exclude remote: we pin the city centre + radius, and
+    # Adzuna (no remote filter) returns both remote- and onsite-tagged jobs.
+    where, distance = _location_params(
+        SearchCriteria(keywords=["x"], location="NYC Metro Area", remote_pref="flexible")
+    )
+    assert where == "New York"
+    assert distance == _DISTANCE_KM
+
+
+def test_location_params_onsite_uses_city_centre() -> None:
+    where, distance = _location_params(
+        SearchCriteria(keywords=["x"], location="Greater Boston", remote_pref="on-site")
+    )
+    assert where == "Boston"
+    assert distance == _DISTANCE_KM
+
+
+def test_location_params_remote_pref_searches_nationwide() -> None:
+    # A remote preference ignores the location and searches without a `where`.
+    where, distance = _location_params(
+        SearchCriteria(keywords=["x"], location="NYC Metro Area", remote_pref="remote")
+    )
+    assert where is None
+    assert distance is None
+
+
+def test_location_params_ungeocodable_omits_where() -> None:
+    where, distance = _location_params(
+        SearchCriteria(keywords=["x"], location="Somewhere Vague 999", remote_pref="flexible")
+    )
+    assert where is None
+    assert distance is None
+
+
+def test_build_params_is_generous_keyword_not_title_only() -> None:
+    criteria = SearchCriteria(keywords=["Data Scientist"], location="NYC Metro Area")
+    params = AdzunaSource()._build_params("Data Scientist", criteria)
+    assert params["what"] == "Data Scientist"  # broad match
+    assert "title_only" not in params  # never the strict title filter
+    assert params["where"] == "New York"
+    assert params["distance"] == _DISTANCE_KM

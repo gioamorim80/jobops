@@ -4,6 +4,32 @@
 M0, M1, M2, M2.5, M2.6, and M3 are built. M4 through M6 are planned (see
 `ROADMAP.md`). Detailed per-milestone notes below; newest refinements first.
 
+## M3 location/remote query fix — Adzuna returned 0 jobs (2026-06-21)
+- Bug: the per-user fetch sent `where='NYC Metro Area'` (Adzuna can't geocode a
+  metro label → 0 results) and treated remote_pref `flexible` as a hard
+  `remote=False`. Query-building layer only; no schema or profile-UI change.
+- LOCATION: `_normalize_location` maps a free-text profile label to a clean,
+  geocodable city centre and the adapter passes `distance=45` (km) so a single
+  city stands in for its commuter metro. Aliases ("NYC/NYC Metro Area/New York
+  Metro" → "New York"; "SF Bay Area/Bay Area" → "San Francisco"; "Greater
+  Boston" → "Boston", etc.), generic metro-suffix stripping ("Seattle Metro
+  Area" → "Seattle"), plain cities pass through; "remote"/"US"/"anywhere" and
+  anything not confidently a place name → OMIT `where` (search nationwide) and log.
+- REMOTE: `SearchCriteria.remote: bool` → `remote_pref: str` (the raw profile
+  value). `remote`/`remote only` → search nationwide (no `where`); `flexible`
+  and `on-site` → pin the city centre + radius. "flexible" never excludes remote:
+  Adzuna has no remote filter, so a location search returns remote- and
+  onsite-tagged jobs alike.
+- GENEROUS: keyword now goes to `what` (broad match), not strict `title_only` —
+  honest fit is the scorer's job (M4), not the source's.
+- Logs the exact final params built from the profile (page / what / where /
+  distance / max_days_old / remote_pref / location); never logs the credentials.
+- Verified: 25 source tests (param-building + normalization), 58 backend tests
+  green. Dry-run against the user's profile (Senior Data Scientist / Data
+  Scientist, "NYC Metro Area", flexible) builds
+  `what='Senior Data Scientist' where='New York' distance=45`. Live result count
+  needs real Adzuna creds (Railway only; local .env keys are blank). Still 0 LLM.
+
 ## M3 audit fixes — Adzuna field mapping (2026-06-21)
 - Migration `0005` adds nullable `salary_is_predicted` (bool), `contract_time`,
   `contract_type`, `category_tag` to `jobs`. No new grants (added columns).
