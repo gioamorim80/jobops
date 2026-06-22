@@ -65,7 +65,8 @@ export default async function MatchesPage() {
       {matches.length === 0 ? (
         <div className="card">
           <p className="faint" style={{ margin: 0 }}>
-            No matches yet. New scored jobs will show up here once a scan has run.
+            No matches yet. New scored jobs will show up here once a scan has
+            run.
           </p>
         </div>
       ) : (
@@ -75,8 +76,15 @@ export default async function MatchesPage() {
             <div key={m.id} className="card">
               <div className="section-head" style={{ marginBottom: "0.6rem" }}>
                 <div>
-                  <div className="card-title" style={{ marginBottom: "0.15rem" }}>
-                    {jobLabel(job?.title ?? null, job?.company ?? null, job?.source_url ?? null)}
+                  <div
+                    className="card-title"
+                    style={{ marginBottom: "0.15rem" }}
+                  >
+                    {jobLabel(
+                      job?.title ?? null,
+                      job?.company ?? null,
+                      job?.source_url ?? null,
+                    )}
                   </div>
                   {job?.location_display && (
                     <p className="muted" style={{ margin: 0 }}>
@@ -100,7 +108,10 @@ export default async function MatchesPage() {
               <div className="summary-grid">
                 <div className="summary-item">
                   <div className="label">Requirements you clear</div>
-                  <MiniList items={m.cleared} empty="Nothing clearly cleared." />
+                  <MiniList
+                    items={m.cleared}
+                    empty="Nothing clearly cleared."
+                  />
                 </div>
                 <div className="summary-item">
                   <div className="label">Honest gaps</div>

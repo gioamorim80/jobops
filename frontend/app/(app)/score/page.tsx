@@ -248,8 +248,8 @@ export default function ScorePage() {
             <p className="hint" style={{ marginTop: 0, marginBottom: "1rem" }}>
               Scoring is done. When you want to apply, generate suggested resume
               changes from your real experience — reordered and rephrased, never
-              invented. This is the deeper step, so run it only for jobs you mean
-              to pursue.
+              invented. This is the deeper step, so run it only for jobs you
+              mean to pursue.
             </p>
             <button
               type="button"
@@ -301,7 +301,9 @@ export default function ScorePage() {
               {tailor.tailored_bullets.map((b, i) => (
                 <div key={i} className="bullet">
                   {b.where && <p className="where">{b.where}</p>}
-                  {b.original && <p className="orig">Currently: {b.original}</p>}
+                  {b.original && (
+                    <p className="orig">Currently: {b.original}</p>
+                  )}
                   <textarea
                     className="textarea"
                     value={bullets[i] ?? ""}
