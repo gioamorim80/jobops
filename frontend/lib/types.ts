@@ -102,6 +102,8 @@ export interface Tailoring {
   id: string;
   source_url: string | null;
   job_text: string | null;
+  role: string | null;
+  company: string | null;
   score: ScoreResult | null;
   tailored_bullets: TailoredBullet[] | null;
   analysis: string | null;

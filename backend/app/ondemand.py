@@ -66,6 +66,12 @@ def _strlist(value: object) -> list[str]:
     return [str(item) for item in value if str(item).strip()]
 
 
+def _clean_label(value: object, max_len: int = 140) -> str:
+    """Tidy an extracted role/company string: collapse whitespace, trim, cap
+    length. Empty string when the scorer found nothing (no fabrication)."""
+    return " ".join(str(value or "").split()).strip()[:max_len]
+
+
 def _normalize_score(data: dict) -> dict:
     try:
         fit = int(data.get("fit", 0))
@@ -261,6 +267,10 @@ def score_and_tailor(user_id: CurrentUserId, body: ScoreRequest) -> dict:
     )
     log_call(client, user_id, "score", score_usage)
     score = _normalize_score(score_raw)
+    # Role/company are extracted from the posting (never invented); stored in
+    # their own columns so the history list can show "Role — Company".
+    role = _clean_label(score_raw.get("role"))
+    company = _clean_label(score_raw.get("company"))
 
     tailor_raw, tailor_usage = run_json_agent(
         TAILOR_SYSTEM_PROMPT_V1,
@@ -282,6 +292,8 @@ def score_and_tailor(user_id: CurrentUserId, body: ScoreRequest) -> dict:
         "user_id": user_id,
         "source_url": source_url,
         "job_text": job_text,
+        "role": role,
+        "company": company,
         "score": score,
         "tailored_bullets": tailor["tailored_bullets"],
         "analysis": tailor["analysis"],

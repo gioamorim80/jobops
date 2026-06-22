@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import type { ScoreResult } from "@/lib/types";
-import { decisionClass, jobSnippet } from "@/lib/ui";
+import { decisionClass, jobLabel } from "@/lib/ui";
 
 // A light launcher / hub — routes into the existing pages. The detailed views
 // (full profile + scored-jobs list) live on the Dashboard; Home only launches.
@@ -31,7 +31,7 @@ export default async function HomePage() {
   // A small peek only (max 3) — not the full list. RLS scopes to this user.
   const { data: recent } = await supabase
     .from("tailorings")
-    .select("id, source_url, job_text, score")
+    .select("id, source_url, role, company, score")
     .order("created_at", { ascending: false })
     .limit(3);
 
@@ -84,7 +84,7 @@ export default async function HomePage() {
                 >
                   <span className="scored-link">
                     <span className="snippet">
-                      {jobSnippet(t.job_text, t.source_url)}
+                      {jobLabel(t.role, t.company, t.source_url)}
                     </span>
                     <span className="scored-meta">
                       <span className="scored-fit">{s.fit ?? "—"}</span>

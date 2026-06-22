@@ -5,7 +5,7 @@ import { AppliedToggle } from "@/components/AppliedToggle";
 import { DeleteTailoringButton } from "@/components/DeleteTailoringButton";
 import { createClient } from "@/lib/supabase/server";
 import type { ParsedProfile, ScoreResult } from "@/lib/types";
-import { decisionClass, jobSnippet } from "@/lib/ui";
+import { decisionClass, jobLabel } from "@/lib/ui";
 
 function ChipList({ items, empty }: { items: string[]; empty: string }) {
   if (!items || items.length === 0) {
@@ -45,7 +45,9 @@ export default async function DashboardPage() {
   // RLS scopes this to the signed-in user's own tailorings only.
   const { data: tailorings } = await supabase
     .from("tailorings")
-    .select("id, source_url, job_text, score, approved, applied_at, created_at")
+    .select(
+      "id, source_url, role, company, score, approved, applied_at, created_at",
+    )
     .order("created_at", { ascending: false })
     .limit(20);
 
@@ -135,7 +137,7 @@ export default async function DashboardPage() {
                 <div key={t.id} className="scored-item">
                   <Link href={`/scored/${t.id}`} className="scored-link">
                     <span className="snippet">
-                      {jobSnippet(t.job_text, t.source_url)}
+                      {jobLabel(t.role, t.company, t.source_url)}
                     </span>
                     <span className="scored-meta">
                       <span className="scored-fit">{s.fit ?? "—"}</span>
@@ -150,6 +152,16 @@ export default async function DashboardPage() {
                     </span>
                   </Link>
                   <span className="scored-actions">
+                    {t.source_url && (
+                      <a
+                        href={t.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="linklike"
+                      >
+                        View posting →
+                      </a>
+                    )}
                     <AppliedToggle id={t.id} appliedAt={t.applied_at ?? null} />
                     <DeleteTailoringButton id={t.id} />
                   </span>

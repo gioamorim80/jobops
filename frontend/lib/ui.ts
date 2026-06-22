@@ -15,23 +15,25 @@ export function fitBand(fit: number): string {
   return "Likely skip";
 }
 
-// First meaningful line / snippet of a posting, for history list labels.
-export function jobSnippet(
-  jobText: string | null,
+// Label for a scored-job history row: the role and company the scorer extracted
+// from the posting. Shows "Role — Company" when both are known, just the role
+// when the company couldn't be determined, and a short sensible fallback (the
+// posting's host, else a generic label) when neither is set — never raw
+// description copy. Rows scored before role/company existed fall back too.
+export function jobLabel(
+  role: string | null,
+  company: string | null,
   sourceUrl: string | null,
-  max = 90,
 ): string {
-  const text = (jobText ?? "").trim();
-  if (text) {
-    const firstLine = text.split("\n").find((l) => l.trim().length > 0) ?? text;
-    const clean = firstLine.trim();
-    return clean.length > max ? `${clean.slice(0, max)}…` : clean;
-  }
+  const r = (role ?? "").trim();
+  const c = (company ?? "").trim();
+  if (r && c) return `${r} — ${c}`;
+  if (r) return r;
   if (sourceUrl) {
     try {
       return new URL(sourceUrl).hostname.replace(/^www\./, "");
     } catch {
-      return sourceUrl;
+      /* fall through to the generic label */
     }
   }
   return "Scored job";

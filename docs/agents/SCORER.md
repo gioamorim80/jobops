@@ -20,11 +20,14 @@ A job posting (fetched, pasted, or from the `jobs` pool) + the user's `profiles.
 ## Output
 ```
 FIT: <score>/100 — APPLY | STRETCH | SKIP
+ROLE: <the job title as stated in the posting, "" if not stated>
+COMPANY: <the hiring company as stated in the posting, "" if not stated>
 CLEARED: <requirements met, with evidence from the profile>
 GAPS: <honest gaps + whether closable>
 REFERRAL ANGLE: <any network connection to suggest, if known>
 ONE-LINE PITCH: <why this user is distinctive for THIS role>
 ```
+ROLE and COMPANY are extracted to label the saved result in the history list.
 
 ## Calibration
 - Wish-list prose ("rockstar", "world-class") = ignore; score hard reqs only.
@@ -35,3 +38,6 @@ ONE-LINE PITCH: <why this user is distinctive for THIS role>
 - Evidence for every CLEARED item must trace to the profile. No invented matches.
 - If the profile lacks a metric the posting cares about, say so in GAPS — don't
   assume a number.
+- ROLE and COMPANY are copied from the posting text, never invented. Return "" for
+  either when the posting does not state it; do not guess a company from the URL or
+  the kind of work.

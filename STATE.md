@@ -4,6 +4,42 @@
 M0, M1, M2, M2.5, M2.6, and M3 are built. M4 through M6 are planned (see
 `ROADMAP.md`). Detailed per-milestone notes below; newest refinements first.
 
+## Scored jobs list: role/company labels + clean source link (2026-06-22)
+- Row label now shows "Role — Company" (just the role if no company, a short
+  fallback if neither) instead of raw description copy.
+- Scorer extracts `role` + `company` from the posting text (no fabrication: ""
+  when not stated; never guessed from URL/domain). docs/agents/SCORER.md mirrors
+  the two new output keys; the existing fit/decision/cleared/gaps keys are
+  unchanged. `/ondemand/score` cleans them (`_clean_label`) and stores them.
+- Migration `0006_tailorings_role_company.sql`: nullable `role` + `company` on
+  tailorings. No new grants (existing RLS + 0002 grants cover them). Idempotent.
+- Source link: when `source_url` is set, the row shows a small "View posting →"
+  link (new tab, rel=noopener noreferrer); the raw URL only ever lives in href.
+  Pasted-text rows (null source_url) show no link.
+- Frontend: `jobSnippet` → `jobLabel(role, company, source_url)` in lib/ui.ts,
+  used by both the Dashboard list and the Home "Recently scored" peek; the
+  fallback never shows description copy. score/band/date/applied + editable
+  applied-date and delete are unchanged. Reads stay RLS-scoped to the user.
+- EXISTING ROWS: rows scored before 0006 have null role/company and show the
+  fallback label (host for link jobs, else "Scored job") — not broken, just
+  generic. Two ways to fill them in, operator's choice:
+    (A) Leave them — only old rows look generic; every new score is correct. No
+        cost, no action.
+    (B) One-time backfill — re-run the scorer over each old row's stored job_text
+        to extract role/company and UPDATE the row. Accurate, but spends one LLM
+        call per old row and counts toward usage. Not built yet; say the word and
+        I'll add a small admin-gated backfill (same allowlist as /admin/fetch-jobs)
+        so it can't be triggered by a normal user.
+  Recommendation: (A) now; (B) only if the old rows matter.
+- `approved` (confirmed): a per-tailoring human-approval flag. False on every
+  fresh/re-score; set True only by `POST /ondemand/approve` when the user clicks
+  "Approve these bullets" on /score after editing the suggested resume changes
+  (the rule-#3 human gate). It records that the user reviewed and accepted those
+  edits and persists them; it sends nothing anywhere. It gates only UI: on /score
+  the bullet textareas lock and a success note shows; the saved-result view shows
+  an "Approved" chip. It does NOT gate the dashboard list or scoring.
+- 67 backend tests green; frontend lint/prettier/build clean; pre-commit clean.
+
 ## Editable applied date on scored jobs (2026-06-22)
 - Why: "Mark as applied" auto-set applied_at to now() with no way to correct it;
   users often apply on a different day than they click (real case: applied 2 days

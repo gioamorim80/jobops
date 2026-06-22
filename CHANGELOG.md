@@ -1,5 +1,33 @@
 # CHANGELOG
 
+## 2026-06-22 — Scored jobs list: role/company labels + clean source link
+- The history row now reads "Role — Company" instead of the first line of the job
+  description. Shows just the role when the company can't be determined, and a
+  short fallback (the posting's host, else "Scored job") when neither is known —
+  never raw description copy.
+- The scorer now also extracts `role` and `company` from the posting text. This is
+  extraction, not fabrication: it returns "" when the posting doesn't state one,
+  and never guesses a company from the URL or the kind of work. docs/agents/
+  SCORER.md mirrors the two new output keys; the existing fit/decision/cleared/
+  gaps/referral_angle/pitch keys are unchanged. The score endpoint tidies the
+  values (`_clean_label`) and stores them.
+- Migration `0006_tailorings_role_company.sql` adds nullable `role` and `company`
+  to tailorings. No new grants needed (existing RLS policy + 0002 grants cover the
+  columns). Idempotent.
+- Source link: when a tailoring has a `source_url`, the row shows a small
+  "View posting →" link that opens in a new tab (rel="noopener noreferrer"). The
+  long URL stays in the href and is never rendered as text. Pasted-text rows (no
+  source_url) show no link.
+- Frontend `jobSnippet` was replaced by `jobLabel(role, company, source_url)` and
+  used by both the Dashboard scored list and the Home "Recently scored" peek.
+  Score, band, date, the applied controls, the editable applied date, and delete
+  are unchanged. All reads stay scoped to the user's own rows via RLS.
+- Existing rows scored before this change have null role/company and show the
+  fallback label until an optional one-time backfill re-extracts them (see
+  STATE.md for the two options). No data is broken.
+- 67 backend tests pass; frontend lint, prettier, and build are clean; pre-commit
+  clean. No new env.
+
 ## 2026-06-22 — Editable applied date on the Scored jobs list
 - "Mark as applied" previously stamped applied_at with now() and offered no way to
   correct it, but users often apply on a different day than they click the button.

@@ -7,7 +7,7 @@ the manual end-to-end test in the M2 docs.
 import pytest
 from app.jobfetch import extract_main_text
 from app.main import app
-from app.ondemand import _applied_at_iso
+from app.ondemand import _applied_at_iso, _clean_label
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
@@ -54,6 +54,13 @@ def test_applied_at_iso_rejects_bad_date() -> None:
     with pytest.raises(HTTPException) as exc:
         _applied_at_iso(True, "not-a-date")
     assert exc.value.status_code == 422
+
+
+def test_clean_label_trims_collapses_and_caps() -> None:
+    assert _clean_label("  Senior  Data\nScientist ") == "Senior Data Scientist"
+    assert _clean_label(None) == ""  # nothing extracted -> empty, never fabricated
+    assert _clean_label("") == ""
+    assert len(_clean_label("x" * 500)) == 140  # capped
 
 
 def test_extract_main_text_pulls_article_body() -> None:
