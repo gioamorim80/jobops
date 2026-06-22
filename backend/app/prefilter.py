@@ -11,6 +11,8 @@ the prefilter must never make that call.
 import re
 from datetime import UTC, datetime
 
+from app.dedupe import content_hash
+
 DEFAULT_CAP = 30
 
 _TOKEN_RE = re.compile(r"[a-z0-9+#]+")
@@ -92,4 +94,22 @@ def prefilter(parsed: dict, jobs: list[dict], cap: int = DEFAULT_CAP) -> list[di
     # Sort by score desc; the original index keeps it stable for equal scores.
     scored.sort(key=lambda item: (-item[0], item[1]))
 
-    return [{**job, "prefilter_score": round(score, 2)} for score, _, job in scored[:cap]]
+    # Dedupe by content_hash (Adzuna's stable source + external_id), keeping the
+    # best-ranked instance. This is defensive: the input is the raw fetched list,
+    # which can carry the SAME posting more than once (the same ad id returned by
+    # several keyword queries/pages, under different tracking-param or URL-form
+    # redirect links). Keying on external_id means same-id-different-url dupes
+    # collapse, while genuinely distinct postings that merely share a title and
+    # company (e.g. the same role in different cities, each its own ad id) survive.
+    # The cap counts UNIQUE jobs.
+    seen: set[str] = set()
+    shortlist: list[dict] = []
+    for score, _, job in scored:
+        digest = content_hash(job)
+        if digest in seen:
+            continue
+        seen.add(digest)
+        shortlist.append({**job, "prefilter_score": round(score, 2)})
+        if len(shortlist) >= cap:
+            break
+    return shortlist

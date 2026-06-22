@@ -19,6 +19,37 @@ def test_hash_falls_back_to_title_company_location() -> None:
     assert content_hash(a) != content_hash(c)
 
 
+def test_same_id_different_tracking_url_is_one_identity() -> None:
+    # The same Adzuna ad id served under different tracking-param / URL-form
+    # redirect links is ONE posting: content_hash keys on source + external_id, so
+    # the differing source_url does not matter.
+    a = {
+        "source": "adzuna",
+        "external_id": "LY1",
+        "title": "Senior Data Scientist, Causal Inference",
+        "company": "Lyft",
+        "source_url": "https://www.adzuna.com/land/ad/LY1?se=a",
+    }
+    b = {
+        "source": "adzuna",
+        "external_id": "LY1",
+        "title": "Senior Data Scientist, Causal Inference",
+        "company": "Lyft",
+        "source_url": "https://www.adzuna.com/details/LY1?se=b",  # different URL form + param
+    }
+    assert content_hash(a) == content_hash(b)
+
+
+def test_same_title_company_different_id_are_distinct() -> None:
+    # Same role title + company but DIFFERENT Adzuna ad ids (e.g. the EY EDGE Data
+    # Scientist role posted in four different cities) are genuinely distinct
+    # postings and must NOT collapse.
+    base = {"source": "adzuna", "title": "EY EDGE Data Scientist", "company": "EY"}
+    stamford = {**base, "external_id": "EY1", "location_display": "Stamford, CT"}
+    iselin = {**base, "external_id": "EY2", "location_display": "Iselin, NJ"}
+    assert content_hash(stamford) != content_hash(iselin)
+
+
 def test_dedupe_batch_collapses_and_stamps() -> None:
     jobs = [
         {"source": "adzuna", "external_id": "1", "title": "A", "source_url": "u1"},

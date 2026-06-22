@@ -48,7 +48,7 @@ def test_caps_to_requested_size() -> None:
 def test_generous_returns_all_when_under_cap() -> None:
     # Even low-signal jobs are passed through (generous): the prefilter narrows by
     # cap, it does not judge true fit.
-    jobs = [_job(title="Unrelated role", description="nothing matching") for _ in range(5)]
+    jobs = [_job(title=f"Unrelated role {i}", description="nothing matching") for i in range(5)]
     ranked = prefilter(_PROFILE, jobs, cap=30)
     assert len(ranked) == 5
     assert all("prefilter_score" in job for job in ranked)
@@ -56,3 +56,95 @@ def test_generous_returns_all_when_under_cap() -> None:
 
 def test_empty_jobs_returns_empty() -> None:
     assert prefilter(_PROFILE, []) == []
+
+
+def test_shortlist_collapses_same_id_dupes_but_keeps_distinct_postings() -> None:
+    """The reported leak: the same posting appears several times in the fetched
+    list (one ad id returned by multiple keyword queries/pages, under different
+    tracking-param or URL-form links). Those collapse on external_id. But the same
+    role title at the same company in DIFFERENT cities (EY EDGE) is four distinct
+    ad ids — genuinely distinct postings that must all survive."""
+    jobs = [
+        # Justworks: one ad id seen twice (two keyword queries returned it).
+        _job(
+            source="adzuna", external_id="JW1", title="Senior Data Scientist", company="Justworks"
+        ),
+        _job(
+            source="adzuna", external_id="JW1", title="Senior Data Scientist", company="Justworks"
+        ),
+        # Lyft: one ad id under three tracking-param / URL-form links.
+        _job(
+            source="adzuna",
+            external_id="LY1",
+            title="Senior Data Scientist, Causal Inference",
+            company="Lyft",
+            source_url="https://www.adzuna.com/land/ad/LY1?se=a",
+        ),
+        _job(
+            source="adzuna",
+            external_id="LY1",
+            title="Senior Data Scientist, Causal Inference",
+            company="Lyft",
+            source_url="https://www.adzuna.com/details/LY1?se=b",
+        ),
+        _job(
+            source="adzuna",
+            external_id="LY1",
+            title="Senior Data Scientist, Causal Inference",
+            company="Lyft",
+            source_url="https://www.adzuna.com/details/LY1?se=c",
+        ),
+        # EY EDGE: same title + company, four distinct ad ids in four cities.
+        _job(
+            source="adzuna",
+            external_id="EY1",
+            title="EY EDGE Data Scientist",
+            company="EY",
+            location_display="Stamford, CT",
+        ),
+        _job(
+            source="adzuna",
+            external_id="EY2",
+            title="EY EDGE Data Scientist",
+            company="EY",
+            location_display="Iselin, NJ",
+        ),
+        _job(
+            source="adzuna",
+            external_id="EY3",
+            title="EY EDGE Data Scientist",
+            company="EY",
+            location_display="Hoboken, NJ",
+        ),
+        _job(
+            source="adzuna",
+            external_id="EY4",
+            title="EY EDGE Data Scientist",
+            company="EY",
+            location_display="Grand Central, New York",
+        ),
+    ]
+    ranked = prefilter(_PROFILE, jobs)
+    ids = sorted(j["external_id"] for j in ranked)
+    assert ids == ["EY1", "EY2", "EY3", "EY4", "JW1", "LY1"]  # dupes collapsed, EY rows kept
+    assert len(ranked) == len(set(ids))  # no repeated ad id in the shortlist
+
+
+def test_dedupe_then_cap_counts_unique_jobs() -> None:
+    # 40 unique ad ids each fetched twice: the cap returns 30 UNIQUE postings, not
+    # 30 rows half of which repeat.
+    jobs = []
+    for i in range(40):
+        for _ in range(2):
+            jobs.append(
+                _job(
+                    source="adzuna",
+                    external_id=f"J{i}",
+                    title=f"Backend Engineer {i}",
+                    description="Python",
+                )
+            )
+    ranked = prefilter(_PROFILE, jobs, cap=30)
+    assert len(ranked) == 30
+    ids = [j["external_id"] for j in ranked]
+    assert len(ids) == len(set(ids))  # all unique

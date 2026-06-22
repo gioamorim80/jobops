@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## 2026-06-21 — M3 fix: duplicate jobs in the prefilter shortlist
+- Symptom: the fetch worked (fetched_raw 157, unique_stored 123) but the returned
+  shortlist repeated jobs — the same posting under different tracking-param or
+  URL-form redirect links (Justworks twice, Lyft "Causal Inference" three times,
+  Capital One twice).
+- Root cause was not the hash. `content_hash` already keys on the stable
+  `source + external_id` (never the redirect_url), so the shared pool deduped
+  correctly (157 → 123). The leak was that `admin.py` built the shortlist with
+  `prefilter(parsed, all_jobs)` over the RAW fetched list, so a posting returned
+  by more than one keyword query or page reappeared in the shortlist even though
+  it stored as a single row.
+- Fix (presentation layer, no hash change): `prefilter` now dedupes its ranked
+  output by `content_hash` (Adzuna's stable external_id), keeping the best-ranked
+  instance, before applying the cap. The cap now counts unique postings.
+- Dedupe key is external_id, deliberately NOT title+company. Same ad id under
+  different tracking URLs collapses to one; genuinely distinct postings that share
+  a title and company — the EY EDGE Data Scientist role advertised in Stamford,
+  Iselin, Hoboken, and Grand Central (four ad ids, four cities) — all survive.
+- Verified with a group-by(title, company): Justworks 2→1, Lyft 3→1, EY EDGE stays
+  4; no repeated ad id in the shortlist. 62 backend tests green, pre-commit clean.
+  No migration, no new env, zero LLM.
+
 ## 2026-06-21 — M3 fix: Adzuna location/remote query (was returning 0 jobs)
 - Cause: the per-user fetch passed the profile location verbatim as Adzuna
   `where` (e.g. `where='NYC Metro Area'`, which Adzuna cannot geocode → 0

@@ -4,6 +4,26 @@
 M0, M1, M2, M2.5, M2.6, and M3 are built. M4 through M6 are planned (see
 `ROADMAP.md`). Detailed per-milestone notes below; newest refinements first.
 
+## M3 dedupe fix — duplicate jobs leaked into the shortlist (2026-06-21)
+- Symptom: fetch worked (fetched_raw 157, unique_stored 123, shortlist 30) but the
+  shortlist repeated jobs (Justworks twice, Lyft "Causal Inference" three times,
+  Capital One twice — same ad id under different tracking-param / URL-form links).
+- Root cause was NOT the hash. `content_hash` already keys on the stable
+  `source + external_id`, never the redirect_url, so storage dedupe was correct
+  (157 → 123). The leak was in `admin.py`: the shortlist was built by
+  `prefilter(parsed, all_jobs)` — the RAW 157-item list — so a posting returned by
+  two keyword queries/pages reappeared even though it stored as one row.
+- Fix (presentation layer, no hash change): `prefilter` now dedupes its ranked
+  output by `content_hash` (Adzuna's stable external_id), keeping the best-ranked
+  instance, before applying the cap — so the cap counts UNIQUE postings.
+- Key choice confirmed: external_id, NOT a title+company key. Same ad id under
+  different tracking URLs collapses; genuinely distinct postings that merely share
+  a title and company (the EY EDGE Data Scientist role in Stamford / Iselin /
+  Hoboken / Grand Central — four ad ids, four cities) all SURVIVE as four rows.
+- Verified: group-by(title, company) on the reported clusters drops Justworks 2→1
+  and Lyft 3→1 while EY EDGE stays 4; zero repeated ad ids in the shortlist.
+  62 backend tests green, pre-commit clean. Still 0 LLM, no migration.
+
 ## M3 location/remote query fix — Adzuna returned 0 jobs (2026-06-21)
 - Bug: the per-user fetch sent `where='NYC Metro Area'` (Adzuna can't geocode a
   metro label → 0 results) and treated remote_pref `flexible` as a hard
