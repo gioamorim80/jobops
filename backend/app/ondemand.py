@@ -14,7 +14,7 @@ Resume/profile/job text is sent only to the agent calls and never logged.
 
 import hashlib
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from agents.scorer import SCORER_SYSTEM_PROMPT_V1
@@ -49,6 +49,8 @@ class TailoredBullet(BaseModel):
 class AppliedRequest(BaseModel):
     id: str
     applied: bool
+    applied_on: str | None = None  # "YYYY-MM-DD"; when marking applied, the date
+    # the user actually applied (defaults to today). Ignored when un-marking.
 
 
 class ApproveRequest(BaseModel):
@@ -325,12 +327,33 @@ def approve_tailoring(user_id: CurrentUserId, body: ApproveRequest) -> dict:
     return {"ok": True}
 
 
+def _applied_at_iso(applied: bool, applied_on: str | None) -> str | None:
+    """Resolve the stored `applied_at` value. None when un-marking. Otherwise the
+    chosen day (`applied_on`, defaulting to today) at noon UTC — noon so the date
+    shows as the same calendar day regardless of the viewer's timezone. Raises a
+    422 if `applied_on` isn't a YYYY-MM-DD date."""
+    if not applied:
+        return None
+    if applied_on:
+        try:
+            day = date.fromisoformat(applied_on)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422, detail="applied_on must be a date (YYYY-MM-DD)."
+            ) from exc
+    else:
+        day = datetime.now(UTC).date()
+    return datetime(day.year, day.month, day.day, 12, 0, tzinfo=UTC).isoformat()
+
+
 @router.post("/applied")
 def set_applied(user_id: CurrentUserId, body: AppliedRequest) -> dict:
-    """Toggle the applied marker on one of the user's own tailorings: set
-    applied_at = now() when marking applied, or null when un-marking."""
+    """Set the applied marker on one of the user's own tailorings. When marking
+    applied, store the date the user actually applied (`applied_on`, defaulting to
+    today) — users often apply on a different day than they click the button. When
+    un-marking, clear it."""
     client = get_service_client()
-    applied_at = datetime.now(UTC).isoformat() if body.applied else None
+    applied_at = _applied_at_iso(body.applied, body.applied_on)
 
     # Scope to the caller's own row (service role bypasses RLS).
     result = (

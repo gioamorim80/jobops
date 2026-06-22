@@ -4,6 +4,23 @@
 M0, M1, M2, M2.5, M2.6, and M3 are built. M4 through M6 are planned (see
 `ROADMAP.md`). Detailed per-milestone notes below; newest refinements first.
 
+## Editable applied date on scored jobs (2026-06-22)
+- Why: "Mark as applied" auto-set applied_at to now() with no way to correct it;
+  users often apply on a different day than they click (real case: applied 2 days
+  earlier). The applied date is now editable.
+- Backend `POST /ondemand/applied` takes an optional `applied_on` ("YYYY-MM-DD").
+  When marking applied it stores that day (default today) at noon UTC so the date
+  reads as the same calendar day in any timezone; un-marking clears it. Bad date
+  → 422. Logic factored into pure `_applied_at_iso` (unit-tested, no network).
+  Still scoped to the caller's own row (JWT user_id + tailorings RLS); applied_at
+  stays a timestamptz — no migration.
+- Frontend `AppliedToggle`: "Mark as applied" now opens a date input defaulting
+  to today (Save/Cancel); the "Applied ✓ <date>" badge gains "Edit date" (same
+  input pre-filled) alongside "Un-mark". Display reads the date in UTC so it
+  matches the chosen day. On-brand `.input-date`/`.applied-edit` styles wrap on
+  mobile; `max=today` prevents future dates.
+- 66 backend tests green; frontend lint/prettier/build clean; pre-commit clean.
+
 ## M3 dedupe fix — duplicate jobs leaked into the shortlist (2026-06-21)
 - Symptom: fetch worked (fetched_raw 157, unique_stored 123, shortlist 30) but the
   shortlist repeated jobs (Justworks twice, Lyft "Causal Inference" three times,

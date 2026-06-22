@@ -754,6 +754,23 @@ input[type="range"] {
   align-items: center;
   gap: 0.5rem;
 }
+.applied-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap; /* date input + Save/Cancel wrap on narrow screens */
+}
+.input-date {
+  width: auto;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.9rem;
+}
+.linklike.muted {
+  color: var(--text-faint);
+}
+.linklike.muted:hover {
+  color: var(--text-muted);
+}
 .applied-badge {
   background: var(--success-bg);
   border-color: #cfe2d4;

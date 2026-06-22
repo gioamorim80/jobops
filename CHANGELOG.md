@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## 2026-06-22 — Editable applied date on the Scored jobs list
+- "Mark as applied" previously stamped applied_at with now() and offered no way to
+  correct it, but users often apply on a different day than they click the button.
+  The applied date is now editable.
+- Backend `POST /ondemand/applied` accepts an optional `applied_on` ("YYYY-MM-DD").
+  Marking applied stores that day (defaulting to today) at noon UTC, so it reads
+  as the same calendar date in any timezone; un-marking clears it; an invalid date
+  returns 422. The conversion lives in a pure `_applied_at_iso` helper with
+  no-network unit tests. The write stays scoped to the caller's own row (JWT
+  user_id + existing tailorings RLS); applied_at remains a timestamptz, so there
+  is no migration.
+- Frontend `AppliedToggle`: marking applied opens a date input defaulting to today
+  (Save / Cancel); the "Applied ✓ <date>" badge gains an "Edit date" action that
+  reopens the input pre-filled, beside "Un-mark". The badge reads the stored date
+  in UTC so it matches the chosen day. New on-brand `.applied-edit` / `.input-date`
+  styles wrap on mobile, and the input caps at today.
+- 66 backend tests pass; frontend lint, prettier, and build are clean; pre-commit
+  clean. No migration, no new env.
+
 ## 2026-06-21 — M3 fix: duplicate jobs in the prefilter shortlist
 - Symptom: the fetch worked (fetched_raw 157, unique_stored 123) but the returned
   shortlist repeated jobs — the same posting under different tracking-param or
