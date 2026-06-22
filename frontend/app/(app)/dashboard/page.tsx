@@ -42,14 +42,20 @@ export default async function DashboardPage() {
   const parsed = (profile.parsed ?? {}) as Partial<ParsedProfile>;
   const resumeName = profile.resume_file_path?.split("/").pop() ?? "—";
 
-  // RLS scopes this to the signed-in user's own tailorings only.
-  const { data: tailorings } = await supabase
+  // RLS scopes this to the signed-in user's own tailorings only. We select "*"
+  // (rather than naming role/company explicitly) so the fetch never 400s if the
+  // 0006 columns aren't present yet — an errored select returns null, which would
+  // otherwise render as a misleading "No scored jobs yet". role/company are read
+  // defensively by jobLabel, so rows missing them still show with a fallback.
+  const { data: tailorings, error: tailoringsError } = await supabase
     .from("tailorings")
-    .select(
-      "id, source_url, role, company, score, approved, applied_at, created_at",
-    )
+    .select("*")
     .order("created_at", { ascending: false })
     .limit(20);
+
+  if (tailoringsError) {
+    console.error("Failed to load tailorings:", tailoringsError.message);
+  }
 
   return (
     <div>

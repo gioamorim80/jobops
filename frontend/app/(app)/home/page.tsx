@@ -29,11 +29,18 @@ export default async function HomePage() {
     : "What would you like to do?";
 
   // A small peek only (max 3) — not the full list. RLS scopes to this user.
-  const { data: recent } = await supabase
+  // Select "*" so the fetch can't 400 if the 0006 role/company columns aren't
+  // present yet (an errored select returns null and the peek would vanish);
+  // jobLabel reads role/company defensively.
+  const { data: recent, error: recentError } = await supabase
     .from("tailorings")
-    .select("id, source_url, role, company, score")
+    .select("*")
     .order("created_at", { ascending: false })
     .limit(3);
+
+  if (recentError) {
+    console.error("Failed to load recent tailorings:", recentError.message);
+  }
 
   return (
     <div>
