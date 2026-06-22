@@ -7,6 +7,7 @@ estimate, one row per agent call.
 from datetime import UTC, datetime
 from typing import Any
 
+from app.config import settings
 from supabase import Client
 
 # Coarse USD-per-token estimates for the cost log (a logging estimate, not
@@ -49,8 +50,14 @@ def log_call(
     tokens are priced at their discounted multipliers, so a cached match_score row
     shows a much smaller cost_estimate than an uncached one — making the Haiku +
     caching savings visible. `tokens_in` records the full input the model saw
-    (fresh input + cache reads + cache writes)."""
-    price_in, price_out = _PRICING.get(model or "", _DEFAULT_PRICING)
+    (fresh input + cache reads + cache writes). The resolved model (the explicit
+    one passed, else the configured default that actually ran) is stored too."""
+    # Same value used for pricing is the value we persist — never re-derived: a
+    # caller that named a model (e.g. the Haiku matcher) gets that; callers that
+    # omit it ran on the configured default (settings.anthropic_model), which is
+    # exactly what llm.py uses for those calls.
+    resolved_model = model or settings.anthropic_model
+    price_in, price_out = _PRICING.get(resolved_model, _DEFAULT_PRICING)
     fresh_in = int(getattr(usage, "input_tokens", 0) or 0)
     tokens_out = int(getattr(usage, "output_tokens", 0) or 0)
     cache_read = int(getattr(usage, "cache_read_input_tokens", 0) or 0)
@@ -65,6 +72,7 @@ def log_call(
         {
             "user_id": user_id,
             "action": action,
+            "model": resolved_model,
             "tokens_in": fresh_in + cache_read + cache_write,
             "tokens_out": tokens_out,
             "cost_estimate": round(cost, 6),

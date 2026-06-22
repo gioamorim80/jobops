@@ -41,6 +41,12 @@ from app.usage import count_calls_today, log_call
 router = APIRouter(prefix="/ondemand", tags=["ondemand"])
 logger = get_logger("jobops.ondemand")
 
+# Model per step, declared explicitly (mirrors matcher.MATCH_MODEL) so the model
+# we CALL is the model we LOG — not whatever the global default happens to be.
+# Sonnet for the on-demand scorer and tailor today.
+SCORE_MODEL = "claude-sonnet-4-6"
+TAILOR_MODEL = "claude-sonnet-4-6"
+
 
 # --------------------------------- models -------------------------------------
 class ScoreRequest(BaseModel):
@@ -313,8 +319,9 @@ def score_job(user_id: CurrentUserId, body: ScoreRequest) -> dict:
         f"USER PROFILE (JSON):\n{json.dumps(parsed)}\n\nJOB POSTING:\n{job_text}",
         max_tokens=1200,
         temperature=0,
+        model=SCORE_MODEL,
     )
-    log_call(client, user_id, "score", score_usage)
+    log_call(client, user_id, "score", score_usage, model=SCORE_MODEL)
     score = _normalize_score(score_raw)
     # Role/company are extracted from the posting (never invented); stored in
     # their own columns so the history list can show "Role — Company".
@@ -423,8 +430,9 @@ def tailor_resume(user_id: CurrentUserId, body: TailorRequest) -> dict:
             f"SCORER RESULT (JSON):\n{json.dumps(score)}"
         ),
         max_tokens=2500,
+        model=TAILOR_MODEL,
     )
-    log_call(client, user_id, "tailor", tailor_usage)
+    log_call(client, user_id, "tailor", tailor_usage, model=TAILOR_MODEL)
     tailor = _normalize_tailor(tailor_raw)
 
     # Save the suggestions; leave approved=false until the user reviews + approves.

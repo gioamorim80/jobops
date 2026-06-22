@@ -29,6 +29,11 @@ router = APIRouter(prefix="/enrich", tags=["enrich"])
 MAX_MESSAGES = 20  # cap conversation length sent to the model
 MAX_CONTENT_CHARS = 2000  # cap per-message length
 
+# Model for the Coach, declared explicitly (mirrors matcher.MATCH_MODEL) so the
+# model we CALL is the model we LOG — not whatever the global default happens to
+# be. Sonnet for the conversational coach today.
+ENRICH_MODEL = "claude-sonnet-4-6"
+
 # Abuse-only floor for the chat cap. A Coach turn is ~0.6 cents, so even if the
 # configured cap is somehow very low (e.g. a leftover test override on the
 # server), never block real conversations below this many turns/day.
@@ -211,9 +216,9 @@ def chat(user_id: CurrentUserId, body: ChatRequest) -> dict:
     # are already clean responses. Everything AFTER the model returns is wrapped so
     # a parsing/handling bug surfaces as a logged traceback and a clean JSON error,
     # never a silent 502.
-    raw, usage = run_chat_text(system, convo, max_tokens=800)
+    raw, usage = run_chat_text(system, convo, max_tokens=800, model=ENRICH_MODEL)
     try:
-        log_call(client, user_id, "enrich", usage)
+        log_call(client, user_id, "enrich", usage, model=ENRICH_MODEL)
         reply, proposal = _parse_coach_reply(raw)
         return {"status": "ok", "reply": reply, "proposal": proposal}
     except Exception:
