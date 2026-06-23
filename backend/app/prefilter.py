@@ -115,19 +115,20 @@ def prefilter(parsed: dict, jobs: list[dict], cap: int = DEFAULT_CAP) -> list[di
         by_hash.append((score, job))
 
     # Pass 2 — collapse ONE real opening that Adzuna listed under DIFFERENT
-    # external_ids (Bug 5): key on normalized title + company + location, keeping
-    # the best-ranked instance (same order as pass 1). DIFFERENT locations stay
-    # distinct (e.g. the same role in New York vs Austin both survive). A row
-    # missing any of the three fields is never collapsed — its key can't
-    # discriminate, so we conservatively keep it. The cap counts UNIQUE openings.
+    # external_ids (Bug 5): key on normalized title + company, keeping the
+    # best-ranked instance (same order as pass 1). This is a deliberate product
+    # choice — location is NOT part of the key, so the same role at the same
+    # company in two cities collapses to one card (the strongest instance), for a
+    # shorter, less repetitive matches list. A row missing title OR company is
+    # never collapsed — its key can't discriminate, so we conservatively keep it.
+    # The cap counts UNIQUE openings.
     seen_openings: set[str] = set()
     shortlist: list[dict] = []
     for score, job in by_hash:
         title = _norm(job.get("title"))
         company = _norm(job.get("company"))
-        location = _norm(job.get("location_display"))
-        if title and company and location:
-            key = f"{title}|{company}|{location}"
+        if title and company:
+            key = f"{title}|{company}"
             if key in seen_openings:
                 continue
             seen_openings.add(key)

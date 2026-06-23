@@ -58,12 +58,12 @@ def test_empty_jobs_returns_empty() -> None:
     assert prefilter(_PROFILE, []) == []
 
 
-def test_shortlist_collapses_same_id_dupes_but_keeps_distinct_postings() -> None:
-    """The reported leak: the same posting appears several times in the fetched
-    list (one ad id returned by multiple keyword queries/pages, under different
-    tracking-param or URL-form links). Those collapse on external_id. But the same
-    role title at the same company in DIFFERENT cities (EY EDGE) is four distinct
-    ad ids — genuinely distinct postings that must all survive."""
+def test_shortlist_collapses_same_id_dupes_and_same_title_company() -> None:
+    """Pass 1 collapses same-external_id dupes (one ad id under several
+    tracking-param / URL-form links). Pass 2 then collapses same title+company
+    regardless of location: the four EY EDGE rows (four cities, four ad ids) now
+    collapse to ONE card (best-ranked kept) — a deliberate product choice for a
+    shorter matches list. Result: Justworks, Lyft, EY = 3 cards."""
     jobs = [
         # Justworks: one ad id seen twice (two keyword queries returned it).
         _job(
@@ -126,8 +126,10 @@ def test_shortlist_collapses_same_id_dupes_but_keeps_distinct_postings() -> None
     ]
     ranked = prefilter(_PROFILE, jobs)
     ids = sorted(j["external_id"] for j in ranked)
-    assert ids == ["EY1", "EY2", "EY3", "EY4", "JW1", "LY1"]  # dupes collapsed, EY rows kept
-    assert len(ranked) == len(set(ids))  # no repeated ad id in the shortlist
+    # EY1 is the best-ranked of the four equal-scored EY rows (first by stable
+    # order); EY2/EY3/EY4 collapse into it now that location is out of the key.
+    assert ids == ["EY1", "JW1", "LY1"]
+    assert len(ranked) == len(set(ids))  # no repeated openings in the shortlist
 
 
 def test_collapses_same_opening_under_different_external_ids() -> None:
@@ -156,25 +158,30 @@ def test_collapses_same_opening_under_different_external_ids() -> None:
     assert ranked[0]["external_id"] == "A1"  # best-ranked representative kept
 
 
-def test_same_title_company_different_location_both_survive() -> None:
-    # GUARDRAIL (NYC/Austin): same role + company in two cities are DISTINCT
-    # openings — different normalized locations -> different keys -> both kept.
-    nyc = _job(
+def test_same_title_company_different_location_now_collapses() -> None:
+    # DELIBERATE product choice (key = title+company only): the same role at the
+    # same company in two cities collapses to ONE card, keeping the best-ranked
+    # instance. (Previously both survived; we now prefer a shorter matches list.)
+    strong = _job(
         source="adzuna",
         external_id="N1",
         title="Data Scientist",
         company="Acme",
         location_display="New York, NY",
+        description="Python, FastAPI, PostgreSQL. Fully remote.",
+        remote=True,
     )
-    austin = _job(
+    weak = _job(
         source="adzuna",
         external_id="X1",
         title="Data Scientist",
         company="Acme",
         location_display="Austin, TX",
+        description="(no keywords)",
     )
-    ranked = prefilter(_PROFILE, [nyc, austin])
-    assert sorted(j["external_id"] for j in ranked) == ["N1", "X1"]
+    ranked = prefilter(_PROFILE, [weak, strong])
+    assert len(ranked) == 1
+    assert ranked[0]["external_id"] == "N1"  # best-ranked instance kept, across cities
 
 
 def test_opening_key_normalizes_case_and_whitespace() -> None:
@@ -197,13 +204,31 @@ def test_opening_key_normalizes_case_and_whitespace() -> None:
     assert len(ranked) == 1
 
 
-def test_empty_location_rows_not_collapsed() -> None:
-    # Conservative: same title+company but EMPTY location -> NOT collapsed (an
-    # empty discriminating field can't safely merge distinct openings).
-    a = _job(source="adzuna", external_id="E1", title="Data Scientist", company="Acme")
-    b = _job(source="adzuna", external_id="E2", title="Data Scientist", company="Acme")
+def test_empty_company_rows_not_collapsed() -> None:
+    # Conservative: same title but EMPTY company -> NOT collapsed (an empty
+    # discriminating field can't safely merge distinct openings). Location is no
+    # longer part of the key, so company is now the field that must be present.
+    a = _job(source="adzuna", external_id="E1", title="Data Scientist")  # company empty
+    b = _job(source="adzuna", external_id="E2", title="Data Scientist")  # company empty
     ranked = prefilter(_PROFILE, [a, b])
     assert sorted(j["external_id"] for j in ranked) == ["E1", "E2"]
+
+
+def test_collapse_keeps_higher_scored_instance() -> None:
+    # Two same title+company rows with different scores collapse to the
+    # HIGHER-scored one (proves the surviving card is the strongest instance).
+    weak = _job(source="adzuna", external_id="LOW", title="Senior Backend Engineer", company="Acme")
+    strong = _job(
+        source="adzuna",
+        external_id="HIGH",
+        title="Senior Backend Engineer",
+        company="Acme",
+        description="Python, FastAPI, PostgreSQL. Fully remote.",
+        remote=True,
+    )
+    ranked = prefilter(_PROFILE, [weak, strong])
+    assert len(ranked) == 1
+    assert ranked[0]["external_id"] == "HIGH"
 
 
 def test_dedupe_then_cap_counts_unique_jobs() -> None:
