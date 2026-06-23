@@ -12,6 +12,13 @@ or `paused`).
   `score_threshold`.
 - The user's profile (for tone/context only — never include raw PII in the email).
 
+## Shared threshold rule (must match /matches)
+A match is surfaced on `/matches` AND emailed in the digest only when
+`score >= score_threshold` (default 60, inclusive). The digest job MUST use this
+identical contract so the two surfaces never disagree. (/matches applies it today
+as a server-side `.gte("score", threshold)`; this is currently a duplicated rule
+across the frontend query and the future Python digest — keep them in sync.)
+
 ## Behavior
 1. Gather qualifying matches (above threshold, not already alerted).
 2. If none, skip silently (don't send empty digests).

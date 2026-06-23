@@ -32,13 +32,24 @@ export default async function MatchesPage() {
     redirect("/onboarding");
   }
 
+  // The user's score threshold (RLS-scoped). Shared rule: surface a match only
+  // when score >= score_threshold (default 60, inclusive). The M5 digest uses the
+  // identical contract (see docs/agents/DIGEST.md).
+  const { data: prefs } = await supabase
+    .from("preferences")
+    .select("score_threshold")
+    .maybeSingle();
+  const threshold = prefs?.score_threshold ?? 60;
+
   // RLS scopes matches to the signed-in user; the job it points at is embedded
-  // from the shared pool. Highest fit first.
+  // from the shared pool. Filter to at-or-above threshold SERVER-SIDE (before the
+  // limit, so the cap counts above-threshold rows). Highest fit first.
   const { data, error } = await supabase
     .from("matches")
     .select(
       "id, score, band, decision, cleared, gaps, analysis, posted_at, jobs ( title, company, location_display, source_url )",
     )
+    .gte("score", threshold)
     .order("score", { ascending: false })
     .limit(50);
 
@@ -65,8 +76,9 @@ export default async function MatchesPage() {
       {matches.length === 0 ? (
         <div className="card">
           <p className="faint" style={{ margin: 0 }}>
-            No matches yet. New scored jobs will show up here once a scan has
-            run.
+            No matches at or above your score threshold ({threshold}). Lower it
+            in <Link href="/settings">Settings</Link> to see more, or check back
+            once a new scan has run.
           </p>
         </div>
       ) : (
