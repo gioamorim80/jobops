@@ -320,6 +320,8 @@ def score_job(user_id: CurrentUserId, body: ScoreRequest) -> dict:
         max_tokens=1200,
         temperature=0,
         model=SCORE_MODEL,
+        label="scorer",
+        log_output_on_error=True,  # scorer output is a fit verdict (no user PII)
     )
     log_call(client, user_id, "score", score_usage, model=SCORE_MODEL)
     score = _normalize_score(score_raw)
@@ -431,6 +433,7 @@ def tailor_resume(user_id: CurrentUserId, body: TailorRequest) -> dict:
         ),
         max_tokens=2500,
         model=TAILOR_MODEL,
+        label="tailor",  # output is rephrased resume content — never snippet-logged
     )
     log_call(client, user_id, "tailor", tailor_usage, model=TAILOR_MODEL)
     tailor = _normalize_tailor(tailor_raw)

@@ -102,6 +102,8 @@ def score_shortlist(client, user_id: str, parsed: dict, shortlist: list[dict]) -
                 max_tokens=_SCORE_MAX_TOKENS,
                 model=MATCH_MODEL,
                 temperature=0,  # deterministic, same as the on-demand scorer
+                label="match-scorer",
+                log_output_on_error=True,  # output is a fit verdict (no user PII)
             )
         except HTTPException as exc:
             failed += 1
