@@ -36,9 +36,9 @@ export default function SettingsPage() {
   const [frequency, setFrequency] = useState<AlertFrequency>("weekly");
   const [threshold, setThreshold] = useState(60);
 
-  // fields we preserve but don't edit here
-  const [compFloor, setCompFloor] = useState("");
-  const [attributionNotes, setAttributionNotes] = useState<string[]>([]);
+  // Note: comp_floor and attribution_notes are intentionally not held or sent.
+  // The backend preserves them server-side from the live row, so we never risk
+  // wiping coach-written attribution_notes with stale client state.
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -86,8 +86,6 @@ export default function SettingsPage() {
       setDomains(fromList(parsed.domains));
       setLocations(fromList(parsed.locations));
       setRemotePref(parsed.remote_pref || "flexible");
-      setCompFloor(parsed.comp_floor ?? "");
-      setAttributionNotes(parsed.attribution_notes ?? []);
 
       if (prefs) {
         setFrequency(prefs.alert_frequency as AlertFrequency);
@@ -119,8 +117,6 @@ export default function SettingsPage() {
           domains: toList(domains),
           locations: toList(locations),
           remote_pref: remotePref,
-          comp_floor: compFloor,
-          attribution_notes: attributionNotes,
         },
         preferences: { alert_frequency: frequency, score_threshold: threshold },
       });

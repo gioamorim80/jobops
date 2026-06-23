@@ -183,24 +183,73 @@ def complete_onboarding(user_id: CurrentUserId, body: CompleteRequest) -> dict:
     return {"ok": True}
 
 
+# Fields the settings form owns: the user edits the full visible set, so these are
+# REPLACED wholesale (including deletions). This is the OPPOSITE of enrich.py's
+# merge_changes, which APPENDS.
+_PROFILE_FORM_FIELDS = (
+    "skills",
+    "target_roles",
+    "domains",
+    "locations",
+    "seniority",
+    "remote_pref",
+)
+# Fields this endpoint must NEVER let the client set: preserved from the live DB
+# row. attribution_notes is coach-written; comp_floor is set elsewhere. (Any other
+# parsed field not in the form set is also preserved, via the merge below.)
+_PROFILE_PRESERVED_FIELDS = ("comp_floor", "attribution_notes")
+
+
+def merge_profile_edit(current: dict, submitted: dict) -> dict:
+    """Field-scoped merge for a settings save. Start from the current DB `parsed`,
+    REPLACE the form-owned fields with the submitted values (wholesale, so removals
+    stick), and preserve everything else — including the client-immutable
+    comp_floor / attribution_notes — from the current row. The submitted values for
+    preserved fields are ignored on purpose."""
+    merged = dict(current or {})
+    for field in _PROFILE_FORM_FIELDS:
+        merged[field] = submitted.get(field)
+    # Preserved fields are pinned to the live DB value, never the request body.
+    for field in _PROFILE_PRESERVED_FIELDS:
+        if current and field in current:
+            merged[field] = current[field]
+    return merged
+
+
 @router.post("/profile")
 def update_profile(user_id: CurrentUserId, body: ProfileUpdateRequest) -> dict:
     """Edit individual profile fields + preferences — WITHOUT re-uploading a resume.
 
-    Only updates the columns provided here (parsed / full_name / email and the
-    preferences row). It never touches raw_resume_text, resume_file_path, or
-    onboarding_complete, so editing a field does not require (or disturb) the
-    uploaded resume. Same security model: user_id comes only from the verified
-    JWT, so a caller can only ever write their own rows.
+    Updates only parsed / full_name / email and the preferences row. It never
+    touches raw_resume_text, resume_file_path, or onboarding_complete.
+
+    `parsed` is a FIELD-SCOPED MERGE, not a full overwrite: the form-owned fields
+    (skills, target_roles, domains, locations, seniority, remote_pref) are replaced
+    wholesale, while comp_floor and attribution_notes are preserved from the live DB
+    row so a stale client can't wipe coach-written attribution_notes. user_id comes
+    only from the verified JWT, so a caller can only ever read/write their own rows.
+
+    Concurrency: this is a read-modify-write on the same `parsed` JSONB that
+    enrich.py's /apply also merges into. Fine today (single-user, sequential). If
+    profile-save and enrich-apply ever run concurrently, serialize the write here
+    (e.g. a row lock or an atomic jsonb update) — not built now.
     """
     client = get_service_client()
+
+    # Read THIS user's current parsed (JWT-derived id only; RLS is the backstop).
+    rows = (
+        client.table("profiles").select("parsed").eq("user_id", user_id).limit(1).execute().data
+        or []
+    )
+    current_parsed = (rows[0].get("parsed") if rows else None) or {}
+    merged_parsed = merge_profile_edit(current_parsed, body.parsed.model_dump())
 
     client.table("profiles").upsert(
         {
             "user_id": user_id,
             "full_name": body.full_name or None,
             "email": body.email or None,
-            "parsed": body.parsed.model_dump(),
+            "parsed": merged_parsed,
         },
         on_conflict="user_id",
     ).execute()
