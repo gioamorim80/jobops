@@ -53,6 +53,11 @@ def _parse_dt(value: object) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
+def _norm(value: object) -> str:
+    """Lowercase, strip, and collapse internal whitespace to single spaces."""
+    return " ".join(str(value or "").split()).lower()
+
+
 def _score(
     job: dict, profile_tokens: set[str], locations: list[str], remote_pref: str, now: datetime
 ) -> float:
@@ -94,21 +99,38 @@ def prefilter(parsed: dict, jobs: list[dict], cap: int = DEFAULT_CAP) -> list[di
     # Sort by score desc; the original index keeps it stable for equal scores.
     scored.sort(key=lambda item: (-item[0], item[1]))
 
-    # Dedupe by content_hash (Adzuna's stable source + external_id), keeping the
-    # best-ranked instance. This is defensive: the input is the raw fetched list,
-    # which can carry the SAME posting more than once (the same ad id returned by
-    # several keyword queries/pages, under different tracking-param or URL-form
-    # redirect links). Keying on external_id means same-id-different-url dupes
-    # collapse, while genuinely distinct postings that merely share a title and
-    # company (e.g. the same role in different cities, each its own ad id) survive.
-    # The cap counts UNIQUE jobs.
-    seen: set[str] = set()
-    shortlist: list[dict] = []
+    # Pass 1 — dedupe by content_hash (Adzuna's stable source + external_id),
+    # keeping the best-ranked instance. Defensive: the input is the raw fetched
+    # list, which can carry the SAME ad id more than once (returned by several
+    # keyword queries/pages, under different tracking-param or URL-form redirect
+    # links). Keying on external_id collapses those same-id-different-url dupes,
+    # while genuinely distinct postings survive. (Cap is applied after pass 2.)
+    seen_hashes: set[str] = set()
+    by_hash: list[tuple[float, dict]] = []
     for score, _, job in scored:
         digest = content_hash(job)
-        if digest in seen:
+        if digest in seen_hashes:
             continue
-        seen.add(digest)
+        seen_hashes.add(digest)
+        by_hash.append((score, job))
+
+    # Pass 2 — collapse ONE real opening that Adzuna listed under DIFFERENT
+    # external_ids (Bug 5): key on normalized title + company + location, keeping
+    # the best-ranked instance (same order as pass 1). DIFFERENT locations stay
+    # distinct (e.g. the same role in New York vs Austin both survive). A row
+    # missing any of the three fields is never collapsed — its key can't
+    # discriminate, so we conservatively keep it. The cap counts UNIQUE openings.
+    seen_openings: set[str] = set()
+    shortlist: list[dict] = []
+    for score, job in by_hash:
+        title = _norm(job.get("title"))
+        company = _norm(job.get("company"))
+        location = _norm(job.get("location_display"))
+        if title and company and location:
+            key = f"{title}|{company}|{location}"
+            if key in seen_openings:
+                continue
+            seen_openings.add(key)
         shortlist.append({**job, "prefilter_score": round(score, 2)})
         if len(shortlist) >= cap:
             break

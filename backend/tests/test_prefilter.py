@@ -130,6 +130,82 @@ def test_shortlist_collapses_same_id_dupes_but_keeps_distinct_postings() -> None
     assert len(ranked) == len(set(ids))  # no repeated ad id in the shortlist
 
 
+def test_collapses_same_opening_under_different_external_ids() -> None:
+    # Bug 5: one real opening Adzuna listed under two ad ids -> same normalized
+    # title+company+location -> collapse to ONE, keeping the best-ranked instance.
+    # The strong row (keyword/remote match) outranks the weak one, so it's kept.
+    strong = _job(
+        source="adzuna",
+        external_id="A1",
+        title="Senior Backend Engineer",
+        company="Acme",
+        location_display="New York, NY",
+        description="Python, FastAPI, PostgreSQL. Fully remote.",
+        remote=True,
+    )
+    weak = _job(
+        source="adzuna",
+        external_id="A2",
+        title="Senior Backend Engineer",
+        company="Acme",
+        location_display="New York, NY",
+        description="(no keywords here)",
+    )
+    ranked = prefilter(_PROFILE, [weak, strong])
+    assert len(ranked) == 1
+    assert ranked[0]["external_id"] == "A1"  # best-ranked representative kept
+
+
+def test_same_title_company_different_location_both_survive() -> None:
+    # GUARDRAIL (NYC/Austin): same role + company in two cities are DISTINCT
+    # openings — different normalized locations -> different keys -> both kept.
+    nyc = _job(
+        source="adzuna",
+        external_id="N1",
+        title="Data Scientist",
+        company="Acme",
+        location_display="New York, NY",
+    )
+    austin = _job(
+        source="adzuna",
+        external_id="X1",
+        title="Data Scientist",
+        company="Acme",
+        location_display="Austin, TX",
+    )
+    ranked = prefilter(_PROFILE, [nyc, austin])
+    assert sorted(j["external_id"] for j in ranked) == ["N1", "X1"]
+
+
+def test_opening_key_normalizes_case_and_whitespace() -> None:
+    # Keys differing only by case / internal whitespace collapse.
+    a = _job(
+        source="adzuna",
+        external_id="W1",
+        title="Data Scientist  ",
+        company="Acme",
+        location_display="New York, NY",
+    )
+    b = _job(
+        source="adzuna",
+        external_id="W2",
+        title="data scientist",
+        company="ACME",
+        location_display="new york,  ny",
+    )
+    ranked = prefilter(_PROFILE, [a, b])
+    assert len(ranked) == 1
+
+
+def test_empty_location_rows_not_collapsed() -> None:
+    # Conservative: same title+company but EMPTY location -> NOT collapsed (an
+    # empty discriminating field can't safely merge distinct openings).
+    a = _job(source="adzuna", external_id="E1", title="Data Scientist", company="Acme")
+    b = _job(source="adzuna", external_id="E2", title="Data Scientist", company="Acme")
+    ranked = prefilter(_PROFILE, [a, b])
+    assert sorted(j["external_id"] for j in ranked) == ["E1", "E2"]
+
+
 def test_dedupe_then_cap_counts_unique_jobs() -> None:
     # 40 unique ad ids each fetched twice: the cap returns 30 UNIQUE postings, not
     # 30 rows half of which repeat.
