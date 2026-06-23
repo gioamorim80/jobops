@@ -88,6 +88,60 @@ minimum and the per-job text dominates input — caching deferred to the tailor 
 where a large stable per-user context repeats); the 0008 decision-consistency fixes
 verified live.
 
+## Backlog (pre-M5 cleanup)
+Prioritized cleanup to clear before M5. One line each; tiers are priority order.
+
+TIER 1 — correctness / data integrity:
+- Merge-fix: `/onboarding/profile` full-overwrites `parsed`; the settings page
+  round-trips `comp_floor`/`attribution_notes` via hidden state, so a save can
+  silently wipe coach-written `attribution_notes`. Fix: server-side field-scoped
+  merge (replace the shown fields, preserve the unshown ones).
+- Bugs 1+2 (likely the same root): bad / JS-rendered job links (e.g. Google
+  careers) fail to fetch — one path scores nav-disclaimer garbage as 0/100, another
+  500s into the "coffee" message. Add a "did I fetch a real posting?" guard; check
+  Railway logs for the masked exception.
+- Bug 5: duplicate jobs in `/matches` despite M3 dedupe — likely dedupe runs on the
+  pool but not the matches/presentation layer. Dedupe at both.
+
+TIER 2 — scorer credibility:
+- Bug 4: the scorer returns DECISION: APPLY on thin / under-scoped postings it
+  admits it couldn't scope (e.g. Capital One Principal: 62 "Moderate fit", analysis
+  says "posting incomplete / not a natural fit", pill says APPLY). Calibrate the
+  decision so low-confidence / incomplete postings don't yield APPLY.
+
+TIER 3 — matches display:
+- Feedback 5 + Bug 3 (same surface): hide matches below the user's score threshold
+  (settings, e.g. 75); and make the decision pill consistent (some matches show one,
+  some don't). The threshold filter may resolve part of Bug 3.
+
+TIER 4 — low-risk polish:
+- Shared links to `/home` (and app routes) bounce to login when logged out, skipping
+  the marketing/intro page beta users loved. Unauthenticated shared links should
+  reach the intro page, not silently redirect to login.
+- Nav: highlight the active page in the top menu.
+
+RESOLVED (investigation done):
+- raw_resume_text: read by the TAILOR path only (verbatim into the tailor prompt);
+  the scorer and matcher are parsed-only; write-once at `/onboarding/parse`.
+  DECISION: surface it READ-ONLY on the profile/settings view ("Resume text on
+  file"). Not editable — editing it would change tailoring output un-gated,
+  bypassing the parse + coach-confirm gate. The editable truth stays in `parsed`.
+- linkedin_text: pure scaffolding — declared in migration 0001 ("unused in M1"),
+  zero readers/writers, not in ParsedProfile, no frontend field. DECISION: Option A
+  — build it as a user-paste field that MIRRORS the resume flow: pasted text stored
+  in the top-level `linkedin_text` column (parallel to `raw_resume_text`), then
+  parsed into `parsed` via the same merge. This doubles as the zero-resume on-ramp
+  (LinkedIn paste for users with no resume PDF), so build it WITH the zero-resume
+  onboarding work, not standalone. Do NOT drop the column.
+
+QUEUED FEATURES (after the above):
+- Resume view link (signed URL — net-new, no helper exists).
+- Score-page → open the coach seeded with that job's context.
+- Surface raw_resume_text read-only on the profile/settings view (small).
+- LinkedIn-paste field (Option A) — bundle with the zero-resume onboarding work.
+- PDF resume export — its OWN post-M5 milestone (base template + approve-then-
+  generate no-fabrication gate).
+
 ## Deferred (not blocking; intentional)
 - One coherent UX/design pass (hold all UI-polish items for it). Known item:
   `/scored/[id]` shows an empty "Suggested changes" section for un-tailored rows.
