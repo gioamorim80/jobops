@@ -15,7 +15,7 @@ import type { ChatMessage, EnrichResponse, Proposal } from "@/lib/types";
 const WELCOME: ChatMessage = {
   role: "assistant",
   content:
-    "Oi! I'm your coach. Think of me as the friend who remembers the impressive " +
+    "Hi! I'm your coach. Think of me as the friend who remembers the impressive " +
     "thing you actually built and won't let you undersell it. Tell me about a " +
     "project you're proud of — or anything your resume didn't quite capture — and " +
     "we'll get the true parts into your profile. Where should we start?",
