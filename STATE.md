@@ -91,34 +91,50 @@ verified live.
 ## Backlog (pre-M5 cleanup)
 Prioritized cleanup to clear before M5. One line each; tiers are priority order.
 
-TIER 1 — correctness / data integrity:
-- Merge-fix: `/onboarding/profile` full-overwrites `parsed`; the settings page
-  round-trips `comp_floor`/`attribution_notes` via hidden state, so a save can
-  silently wipe coach-written `attribution_notes`. Fix: server-side field-scoped
-  merge (replace the shown fields, preserve the unshown ones).
-- Bugs 1+2 (likely the same root): bad / JS-rendered job links (e.g. Google
-  careers) fail to fetch — one path scores nav-disclaimer garbage as 0/100, another
-  500s into the "coffee" message. Add a "did I fetch a real posting?" guard; check
-  Railway logs for the masked exception.
-- Bug 5: duplicate jobs in `/matches` despite M3 dedupe — likely dedupe runs on the
-  pool but not the matches/presentation layer. Dedupe at both.
+Resolved this session (TIER 1 + TIER 2 cleared):
+- Merge-fix footgun — DONE: `/onboarding/profile` now does a server-side
+  field-scoped merge (replaces the form-owned fields, preserves `comp_floor` /
+  `attribution_notes` from the DB row), so a settings save can no longer wipe
+  coach-written attribution_notes. Commit f257e96.
+- Bug 2 (observability) — DONE: 5xx causes are now logged server-side (PII-safe),
+  so the real exception is visible in Railway. The user-facing "coffee" message is
+  unchanged. Commit 634ec7a.
+- Bugs 1 + 4 (scorer-v2) — DONE: the scorer emits `scorable` (skip-save on
+  non-postings — Bug 1) and `posting_seniority`, with a deterministic
+  APPLY->STRETCH cap at >=2 levels above target; the prompt no longer auto-APPLYs
+  thin or too-senior roles (Bug 4). Verified live (Capital One now STRETCH,
+  too-senior roles cap, non-postings show the "unreadable" notice). Commit 2d73597.
+- Bug 5 (matches dedupe) — DONE: the prefilter collapses same normalized
+  title+company openings (location intentionally dropped — fewer, stronger cards;
+  keeps the best-ranked instance), accepting that distinct same-title openings at
+  one company merge. Commit 9761a95. Prefilter-only; applies to FUTURE scoring
+  runs, not existing rows.
 
-TIER 2 — scorer credibility:
-- Bug 4: the scorer returns DECISION: APPLY on thin / under-scoped postings it
-  admits it couldn't scope (e.g. Capital One Principal: 62 "Moderate fit", analysis
-  says "posting incomplete / not a natural fit", pill says APPLY). Calibrate the
-  decision so low-confidence / incomplete postings don't yield APPLY.
+STALE MATCHES (decision recorded — do NOT build a heavy auto-rescore mechanism):
+- Existing `matches` rows are not retroactively updated by scorer/prefilter changes
+  (the matcher skips job_ids already in `matches`). Decision: this is covered by
+  (a) the Matches threshold filter and (b) a per-row Delete button on Matches —
+  NOT by an automatic clear/re-score system. Accepted residual: a high-scoring
+  match with a now-stale decision/analysis won't be filtered and must be deleted
+  manually (cosmetic-ish, tolerated).
 
-TIER 3 — matches display:
-- Feedback 5 + Bug 3 (same surface): hide matches below the user's score threshold
-  (settings, e.g. 75); and make the decision pill consistent (some matches show one,
-  some don't). The threshold filter may resolve part of Bug 3.
+TIER 3 — /matches surface (all the same surface; build adjacent, one commit each):
+- Matches threshold filter: hide matches scoring below the user's `score_threshold`
+  (preferences). Write the "is this above the user's threshold?" check as a SHARED
+  predicate so the M5 digest email reuses the exact same rule — do not duplicate it.
+- Matches Delete button: per-row delete on `/matches` (mirror the Dashboard
+  scored-jobs Delete, but against the `matches` table). The Dashboard tailorings
+  list already has Delete; `/matches` has none yet.
+- Bug 3: legacy `matches` rows from before migration 0008 have `decision = NULL` ->
+  no pill (`{m.decision && …}` is falsy). Fix: render a fallback when decision is
+  null, or backfill/clear the legacy rows.
 
 TIER 4 — low-risk polish:
-- Shared links to `/home` (and app routes) bounce to login when logged out, skipping
-  the marketing/intro page beta users loved. Unauthenticated shared links should
-  reach the intro page, not silently redirect to login.
-- Nav: highlight the active page in the top menu.
+- Nav active-state: MAKE CONSISTENT (not "add") — the active-route highlight works
+  on Matches but NOT on Dashboard; the logic exists but doesn't cover all routes.
+- Shared-link landing: `/home` and app routes bounce to login when logged out,
+  skipping the marketing/intro page; unauthenticated shared links should reach the
+  intro page, not silently redirect to login.
 
 RESOLVED (investigation done):
 - raw_resume_text: read by the TAILOR path only (verbatim into the tailor prompt);
