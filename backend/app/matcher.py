@@ -89,8 +89,10 @@ def score_shortlist(client, user_id: str, parsed: dict, shortlist: list[dict]) -
         {"type": "text", "text": profile_block, "cache_control": {"type": "ephemeral"}},
     ]
 
+    target_seniority = str(parsed.get("seniority") or "")
     scored = 0
     failed = 0
+    unscorable = 0
     cache_read_tokens = 0
     cache_write_tokens = 0
     for job in will_score:
@@ -114,7 +116,12 @@ def score_shortlist(client, user_id: str, parsed: dict, shortlist: list[dict]) -
         cache_read_tokens += int(getattr(usage, "cache_read_input_tokens", 0) or 0)
         cache_write_tokens += int(getattr(usage, "cache_creation_input_tokens", 0) or 0)
 
-        score = _normalize_score(raw)
+        score = _normalize_score(raw, target_seniority)
+        # Don't persist a non-posting (rare on the Adzuna path) — no 0 row for it.
+        if not score["scorable"]:
+            unscorable += 1
+            logger.info("match: job=%s came back not a real posting; skipping", job["id"])
+            continue
         client.table("matches").upsert(
             {
                 "user_id": user_id,
@@ -135,13 +142,14 @@ def score_shortlist(client, user_id: str, parsed: dict, shortlist: list[dict]) -
         scored += 1
 
     logger.info(
-        "score_shortlist: user=%s shortlist=%s already=%s scored=%s failed=%s skipped_cap=%s "
-        "cache_read=%s cache_write=%s",
+        "score_shortlist: user=%s shortlist=%s already=%s scored=%s failed=%s unscorable=%s "
+        "skipped_cap=%s cache_read=%s cache_write=%s",
         user_id[:8],
         len(shortlist),
         len(already),
         scored,
         failed,
+        unscorable,
         skipped_cap,
         cache_read_tokens,
         cache_write_tokens,
@@ -151,6 +159,7 @@ def score_shortlist(client, user_id: str, parsed: dict, shortlist: list[dict]) -
         "already_scored": len(already),
         "scored": scored,
         "failed": failed,
+        "unscorable": unscorable,
         "skipped_for_cap": skipped_cap,
         "model": MATCH_MODEL,
         "cache_read_tokens": cache_read_tokens,

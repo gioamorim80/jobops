@@ -22,6 +22,7 @@ Resume/profile/job text is sent only to the agent calls and never logged.
 
 import hashlib
 import json
+import re
 from datetime import UTC, date, datetime
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -92,7 +93,68 @@ def _clean_label(value: object, max_len: int = 140) -> str:
     return " ".join(str(value or "").split()).strip()[:max_len]
 
 
-def _normalize_score(data: dict) -> dict:
+# Ordered seniority levels for the deterministic decision cap. Posting levels come
+# from the scorer's constrained `posting_seniority` enum; target levels are parsed
+# from the user's free-text `parsed.seniority` (highest match wins). Higher = more
+# senior. Keys are matched as whole words, longest-phrase wins via max().
+_SENIORITY_LEVELS: dict[str, int] = {
+    "junior": 1,
+    "entry": 1,
+    "associate": 1,
+    "mid": 2,
+    "mid-level": 2,
+    "midlevel": 2,
+    "intermediate": 2,
+    "senior": 3,
+    "staff": 4,
+    "principal": 4,
+    "lead": 4,
+    "director": 5,
+    "head": 5,
+    "vp": 6,
+    "vice president": 6,
+    "senior director": 6,
+    "svp": 6,
+    "evp": 6,
+}
+
+
+def _max_seniority_level(text: str) -> int | None:
+    """Highest seniority level named in free text (e.g. 'senior, mid-level' -> 3),
+    or None if no known level word is present."""
+    haystack = (text or "").lower()
+    found = [
+        level
+        for word, level in _SENIORITY_LEVELS.items()
+        if re.search(rf"\b{re.escape(word)}\b", haystack)
+    ]
+    return max(found) if found else None
+
+
+def _apply_seniority_cap(decision: str, posting_seniority: str, target_seniority: str) -> str:
+    """Deterministic backstop on top of the model's judgment: if the posting's
+    level is >= 2 levels ABOVE the user's highest target level, cap APPLY -> STRETCH.
+    Only fires on CLEAR cases — both levels must be mappable and the gap >= 2; never
+    touches STRETCH/SKIP. No-op when either side is unmappable."""
+    if decision != "APPLY":
+        return decision
+    posting_level = _SENIORITY_LEVELS.get(posting_seniority)
+    target_level = _max_seniority_level(target_seniority)
+    if posting_level is None or target_level is None:
+        return decision
+    if posting_level - target_level >= 2:
+        logger.warning(
+            "seniority cap: posting=%r (L%d) is >=2 above target=%r (L%d); APPLY -> STRETCH",
+            posting_seniority,
+            posting_level,
+            target_seniority,
+            target_level,
+        )
+        return "STRETCH"
+    return decision
+
+
+def _normalize_score(data: dict, target_seniority: str = "") -> dict:
     try:
         fit = int(data.get("fit", 0))
     except (TypeError, ValueError):
@@ -111,9 +173,15 @@ def _normalize_score(data: dict) -> dict:
             fit,
         )
         decision = "STRETCH"
+    # scorable: MISSING defaults to True — never silently reject a real posting.
+    scorable = bool(data.get("scorable", True))
+    posting_seniority = str(data.get("posting_seniority") or "").strip().lower()
+    decision = _apply_seniority_cap(decision, posting_seniority, target_seniority)
     return {
         "fit": fit,
         "decision": decision,
+        "scorable": scorable,
+        "posting_seniority": posting_seniority,
         "cleared": _strlist(data.get("cleared")),
         "gaps": _strlist(data.get("gaps")),
         "referral_angle": str(data.get("referral_angle") or ""),
@@ -324,7 +392,21 @@ def score_job(user_id: CurrentUserId, body: ScoreRequest) -> dict:
         log_output_on_error=True,  # scorer output is a fit verdict (no user PII)
     )
     log_call(client, user_id, "score", score_usage, model=SCORE_MODEL)
-    score = _normalize_score(score_raw)
+    score = _normalize_score(score_raw, parsed.get("seniority") or "")
+
+    # Bug 1: if the scorer says this isn't a real posting, do NOT save a row (keeps
+    # the URL cache clean so a re-paste doesn't re-serve a junk 0/100) — return the
+    # same "unreadable"-style notice the fetch-failure path uses.
+    if not score["scorable"]:
+        logger.info("score: content not a real posting (scorable=false); not saving")
+        return {
+            "status": "unreadable",
+            "message": (
+                "We couldn't find a real job posting there. Double-check the link, "
+                "or paste the full job description text and we'll take it from there."
+            ),
+        }
+
     # Role/company are extracted from the posting (never invented); stored in
     # their own columns so the history list can show "Role — Company".
     role = _clean_label(score_raw.get("role"))
