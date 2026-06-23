@@ -82,78 +82,87 @@ export default async function MatchesPage() {
           </p>
         </div>
       ) : (
-        matches.map((m) => {
-          const job = m.jobs;
-          return (
-            <div key={m.id} className="card">
-              <div className="section-head" style={{ marginBottom: "0.6rem" }}>
-                <div>
-                  <div
-                    className="card-title"
-                    style={{ marginBottom: "0.15rem" }}
-                  >
-                    {jobLabel(
-                      job?.title ?? null,
-                      job?.company ?? null,
-                      job?.source_url ?? null,
+        <>
+          <p className="muted" style={{ marginTop: 0, marginBottom: "1rem" }}>
+            Showing matches scoring {threshold} and above. Adjust your threshold
+            in <Link href="/settings">Settings</Link>.
+          </p>
+          {matches.map((m) => {
+            const job = m.jobs;
+            return (
+              <div key={m.id} className="card">
+                <div
+                  className="section-head"
+                  style={{ marginBottom: "0.6rem" }}
+                >
+                  <div>
+                    <div
+                      className="card-title"
+                      style={{ marginBottom: "0.15rem" }}
+                    >
+                      {jobLabel(
+                        job?.title ?? null,
+                        job?.company ?? null,
+                        job?.source_url ?? null,
+                      )}
+                    </div>
+                    {job?.location_display && (
+                      <p className="muted" style={{ margin: 0 }}>
+                        {job.location_display}
+                      </p>
                     )}
                   </div>
-                  {job?.location_display && (
-                    <p className="muted" style={{ margin: 0 }}>
-                      {job.location_display}
-                    </p>
+                  <div className="scored-meta">
+                    <span className="scored-fit">{m.score ?? "—"}</span>
+                    {m.band && <span className="band">{m.band}</span>}
+                    {m.decision && (
+                      <span className={decisionClass[m.decision]}>
+                        Decision: {m.decision}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {m.analysis && <p style={{ marginTop: 0 }}>{m.analysis}</p>}
+
+                <div className="summary-grid">
+                  <div className="summary-item">
+                    <div className="label">Requirements you clear</div>
+                    <MiniList
+                      items={m.cleared}
+                      empty="Nothing clearly cleared."
+                    />
+                  </div>
+                  <div className="summary-item">
+                    <div className="label">Honest gaps</div>
+                    <MiniList items={m.gaps} empty="No notable gaps." />
+                  </div>
+                </div>
+
+                <div className="scored-actions" style={{ marginTop: "1rem" }}>
+                  {job?.source_url && (
+                    <a
+                      href={job.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="linklike"
+                    >
+                      View posting →
+                    </a>
+                  )}
+                  {job?.source_url && (
+                    <Link
+                      href={`/score?url=${encodeURIComponent(job.source_url)}`}
+                      className="btn btn-sm"
+                    >
+                      Tailor my resume for this
+                    </Link>
                   )}
                 </div>
-                <div className="scored-meta">
-                  <span className="scored-fit">{m.score ?? "—"}</span>
-                  {m.band && <span className="band">{m.band}</span>}
-                  {m.decision && (
-                    <span className={decisionClass[m.decision]}>
-                      Decision: {m.decision}
-                    </span>
-                  )}
-                </div>
               </div>
-
-              {m.analysis && <p style={{ marginTop: 0 }}>{m.analysis}</p>}
-
-              <div className="summary-grid">
-                <div className="summary-item">
-                  <div className="label">Requirements you clear</div>
-                  <MiniList
-                    items={m.cleared}
-                    empty="Nothing clearly cleared."
-                  />
-                </div>
-                <div className="summary-item">
-                  <div className="label">Honest gaps</div>
-                  <MiniList items={m.gaps} empty="No notable gaps." />
-                </div>
-              </div>
-
-              <div className="scored-actions" style={{ marginTop: "1rem" }}>
-                {job?.source_url && (
-                  <a
-                    href={job.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="linklike"
-                  >
-                    View posting →
-                  </a>
-                )}
-                {job?.source_url && (
-                  <Link
-                    href={`/score?url=${encodeURIComponent(job.source_url)}`}
-                    className="btn btn-sm"
-                  >
-                    Tailor my resume for this
-                  </Link>
-                )}
-              </div>
-            </div>
-          );
-        })
+            );
+          })}
+        </>
       )}
     </div>
   );
