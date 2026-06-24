@@ -22,6 +22,24 @@ repos:
         args: ["--fix"]
       - id: ruff-format
 
+  # Frontend formatting. Mirrors CI's `npm run format:check`, but auto-formats to
+  # match the ruff-format hook's behavior above (it rewrites the file; you re-stage
+  # and commit again). Prettier is pinned to 3.4.2 — identical to frontend's
+  # package.json and CI — and pre-commit installs it in its own node env, so the hook
+  # works without frontend/node_modules present (CI's quality job has no npm install).
+  # Still reads frontend/.prettierrc.json. Scoped to frontend files Prettier owns;
+  # backend stays with ruff.
+  - repo: local
+    hooks:
+      - id: prettier-frontend
+        name: prettier (frontend)
+        entry: prettier --write --ignore-unknown
+        language: node
+        additional_dependencies: ["prettier@3.4.2"]
+        files: ^frontend/.*\.(ts|tsx|js|jsx|mjs|cjs|json|css|scss|md)$
+        exclude: ^frontend/next-env\.d\.ts$
+        pass_filenames: true
+
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.18.4
     hooks:
