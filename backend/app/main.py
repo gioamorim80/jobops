@@ -19,6 +19,7 @@ from app.admin import router as admin_router
 from app.applog import get_logger
 from app.config import settings
 from app.enrich import router as enrich_router
+from app.matches import router as matches_router
 from app.onboarding import router as onboarding_router
 from app.ondemand import router as ondemand_router
 
@@ -77,6 +78,7 @@ app.include_router(onboarding_router)
 app.include_router(ondemand_router)
 app.include_router(enrich_router)
 app.include_router(admin_router)
+app.include_router(matches_router)
 
 
 def get_anthropic_client() -> anthropic.Anthropic:

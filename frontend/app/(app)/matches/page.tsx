@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { DeleteMatchButton } from "@/components/DeleteMatchButton";
 import { createClient } from "@/lib/supabase/server";
 import type { Match } from "@/lib/types";
 import { decisionClass, jobLabel } from "@/lib/ui";
@@ -158,6 +159,7 @@ export default async function MatchesPage() {
                       Tailor my resume for this
                     </Link>
                   )}
+                  <DeleteMatchButton id={m.id} />
                 </div>
               </div>
             );
