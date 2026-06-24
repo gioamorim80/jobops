@@ -220,6 +220,21 @@ p {
   color: var(--text-faint);
   margin-top: 0.4rem;
 }
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text);
+}
+.checkbox-row input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
 .input,
 .select,
 .textarea {

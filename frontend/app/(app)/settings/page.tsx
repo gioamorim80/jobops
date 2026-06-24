@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { backendPost } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
-import type { AlertFrequency, ParsedProfile } from "@/lib/types";
+import type { ParsedProfile } from "@/lib/types";
 
 type Load = "loading" | "ready" | "error";
 
@@ -33,7 +33,7 @@ export default function SettingsPage() {
   const [remotePref, setRemotePref] = useState("flexible");
 
   // preferences
-  const [frequency, setFrequency] = useState<AlertFrequency>("weekly");
+  const [emailOptIn, setEmailOptIn] = useState(false);
   const [threshold, setThreshold] = useState(60);
 
   // Note: comp_floor and attribution_notes are intentionally not held or sent.
@@ -66,7 +66,7 @@ export default function SettingsPage() {
             .maybeSingle(),
           supabase
             .from("preferences")
-            .select("alert_frequency, score_threshold")
+            .select("email_opt_in, score_threshold")
             .eq("user_id", user.id)
             .maybeSingle(),
         ]);
@@ -88,7 +88,7 @@ export default function SettingsPage() {
       setRemotePref(parsed.remote_pref || "flexible");
 
       if (prefs) {
-        setFrequency(prefs.alert_frequency as AlertFrequency);
+        setEmailOptIn(Boolean(prefs.email_opt_in));
         setThreshold(prefs.score_threshold);
       }
       setLoad("ready");
@@ -118,7 +118,7 @@ export default function SettingsPage() {
           locations: toList(locations),
           remote_pref: remotePref,
         },
-        preferences: { alert_frequency: frequency, score_threshold: threshold },
+        preferences: { email_opt_in: emailOptIn, score_threshold: threshold },
       });
       setSaved(true);
     } catch (err) {
@@ -277,20 +277,18 @@ export default function SettingsPage() {
         <div className="card-title">Alerts</div>
 
         <div className="field">
-          <label className="label" htmlFor="frequency">
-            Alert frequency
+          <label className="checkbox-row" htmlFor="emailOptIn">
+            <input
+              id="emailOptIn"
+              type="checkbox"
+              checked={emailOptIn}
+              onChange={(e) => setEmailOptIn(e.target.checked)}
+            />
+            <span>Email me new matches</span>
           </label>
-          <select
-            id="frequency"
-            className="select"
-            value={frequency}
-            onChange={(e) => setFrequency(e.target.value as AlertFrequency)}
-          >
-            <option value="off">Off — no emails</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-          </select>
-          <p className="hint">How often we email you new scored matches.</p>
+          <p className="hint">
+            Get an email when we find new roles scored against your profile.
+          </p>
         </div>
 
         <div className="field" style={{ marginBottom: 0 }}>

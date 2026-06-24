@@ -18,11 +18,9 @@ export interface Profile {
   onboarding_complete: boolean;
 }
 
-export type AlertFrequency = "off" | "daily" | "weekly";
-
 export interface Preferences {
   user_id: string;
-  alert_frequency: AlertFrequency;
+  email_opt_in: boolean;
   score_threshold: number;
 }
 

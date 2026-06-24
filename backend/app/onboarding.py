@@ -14,7 +14,6 @@ input, so a caller can only ever write their own rows.
 """
 
 import json
-from typing import Literal
 
 import anthropic
 from agents.onboarding import ONBOARDING_SYSTEM_PROMPT_V1
@@ -57,7 +56,9 @@ class ParsedProfile(BaseModel):
 
 
 class PreferencesIn(BaseModel):
-    alert_frequency: Literal["off", "daily", "weekly"] = "weekly"
+    # Single opt-in for digest emails (ROADMAP: "single opt-in, no cadence").
+    # Defaults to False so a missing/old client never opts a user in by accident.
+    email_opt_in: bool = False
     score_threshold: int = Field(default=60, ge=0, le=100)
 
 
@@ -174,7 +175,7 @@ def complete_onboarding(user_id: CurrentUserId, body: CompleteRequest) -> dict:
     client.table("preferences").upsert(
         {
             "user_id": user_id,
-            "alert_frequency": body.preferences.alert_frequency,
+            "email_opt_in": body.preferences.email_opt_in,
             "score_threshold": body.preferences.score_threshold,
         },
         on_conflict="user_id",
@@ -257,7 +258,7 @@ def update_profile(user_id: CurrentUserId, body: ProfileUpdateRequest) -> dict:
     client.table("preferences").upsert(
         {
             "user_id": user_id,
-            "alert_frequency": body.preferences.alert_frequency,
+            "email_opt_in": body.preferences.email_opt_in,
             "score_threshold": body.preferences.score_threshold,
         },
         on_conflict="user_id",

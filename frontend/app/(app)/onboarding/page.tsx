@@ -5,7 +5,7 @@ import { useRef, useState, type ChangeEvent } from "react";
 
 import { backendPost } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
-import type { AlertFrequency, Draft } from "@/lib/types";
+import type { Draft } from "@/lib/types";
 
 type Step = "upload" | "review";
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -44,7 +44,7 @@ export default function OnboardingPage() {
   // gap questions
   const [targetRoles, setTargetRoles] = useState("");
   const [remotePref, setRemotePref] = useState("flexible");
-  const [frequency, setFrequency] = useState<AlertFrequency>("weekly");
+  const [emailOptIn, setEmailOptIn] = useState(false);
 
   function onPickFile(event: ChangeEvent<HTMLInputElement>) {
     setError("");
@@ -132,7 +132,7 @@ export default function OnboardingPage() {
           comp_floor: "",
           attribution_notes: [],
         },
-        preferences: { alert_frequency: frequency, score_threshold: 60 },
+        preferences: { email_opt_in: emailOptIn, score_threshold: 60 },
       });
 
       router.push("/dashboard");
@@ -339,21 +339,19 @@ export default function OnboardingPage() {
                 </p>
               </div>
               <div className="field">
-                <label className="label" htmlFor="frequency">
-                  Alert frequency
+                <label className="checkbox-row" htmlFor="emailOptIn">
+                  <input
+                    id="emailOptIn"
+                    type="checkbox"
+                    checked={emailOptIn}
+                    onChange={(e) => setEmailOptIn(e.target.checked)}
+                  />
+                  <span>Email me new matches</span>
                 </label>
-                <select
-                  id="frequency"
-                  className="select"
-                  value={frequency}
-                  onChange={(e) =>
-                    setFrequency(e.target.value as AlertFrequency)
-                  }
-                >
-                  <option value="off">Off</option>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                </select>
+                <p className="hint">
+                  Get an email when we find new roles scored against your
+                  profile.
+                </p>
               </div>
             </div>
           </div>
