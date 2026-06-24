@@ -42,8 +42,10 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (!user && isProtected(pathname)) {
+    // Logged out: land on the public marketing page (which has its own Sign in /
+    // Get started CTAs), not the bare /login form.
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = "/";
     return NextResponse.redirect(url);
   }
 

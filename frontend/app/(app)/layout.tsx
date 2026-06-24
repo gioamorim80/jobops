@@ -13,7 +13,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login");
+  // Logged-out visitors to a shared app link land on the public marketing page
+  // (which has its own Sign in / Get started CTAs), not the bare /login form.
+  if (!user) redirect("/");
 
   return (
     <>
