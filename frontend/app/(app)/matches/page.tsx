@@ -152,10 +152,7 @@ export default async function MatchesPage() {
                     </a>
                   )}
                   {job?.source_url && (
-                    <Link
-                      href={`/score?url=${encodeURIComponent(job.source_url)}`}
-                      className="btn btn-sm"
-                    >
+                    <Link href={`/score?match=${m.id}`} className="btn btn-sm">
                       Tailor my resume for this
                     </Link>
                   )}

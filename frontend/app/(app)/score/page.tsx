@@ -7,6 +7,7 @@ import { RotatingStatus } from "@/components/RotatingStatus";
 import { backendPost } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
 import type {
+  MatchContext,
   ScoreResponse,
   ScoreResult,
   TailorResponse,
@@ -41,6 +42,13 @@ export default function ScorePage() {
   const [bullets, setBullets] = useState<string[]>([]);
   const [cached, setCached] = useState(false);
 
+  // ?match=<id> mode: tailor an already-found match by pasting its full JD. We load
+  // only the match's role/company/link (JWT-scoped via /matches/context) for context;
+  // the score+tailor runs on the pasted text, never by re-fetching the posting URL.
+  const [matchId, setMatchId] = useState<string | null>(null);
+  const [matchCtx, setMatchCtx] = useState<MatchContext | null>(null);
+  const [matchError, setMatchError] = useState("");
+
   const [tailoring, setTailoring] = useState(false);
   // Latched true only after a cap (limit_reached) response from the tailor call,
   // so the Tailor button can't be clicked again. NOT set by generic/network errors
@@ -49,10 +57,18 @@ export default function ScorePage() {
   const [approving, setApproving] = useState(false);
   const [approved, setApproved] = useState(false);
 
-  // A Match's "Tailor my resume for this" deep-links here as ?url=…; prefill and
-  // score it right away so the user lands on the result + on-demand tailor step.
+  // Deep links. ?match=<id> opens the paste-the-full-JD tailor flow for a found
+  // match (load context only, NO auto-fetch). The older ?url= path prefills and
+  // auto-scores a pasted/fetched URL right away.
   useEffect(() => {
-    const deepLink = new URLSearchParams(window.location.search).get("url");
+    const params = new URLSearchParams(window.location.search);
+    const matchParam = params.get("match");
+    if (matchParam) {
+      setMatchId(matchParam);
+      void loadMatch(matchParam);
+      return;
+    }
+    const deepLink = params.get("url");
     if (deepLink) {
       setUrl(deepLink);
       void run(false, deepLink);
@@ -164,6 +180,86 @@ export default function ScorePage() {
     }
   }
 
+  // Load the match context for ?match mode. JWT-scoped server-side: a match id that
+  // isn't the caller's returns 404, so a user can't load another user's match here.
+  async function loadMatch(id: string) {
+    setPhase("loading");
+    setError("");
+    setNotice("");
+    try {
+      const ctx = await backendPost<MatchContext>(
+        "/matches/context",
+        await token(),
+        { id },
+      );
+      setMatchCtx(ctx);
+      setPhase("input");
+    } catch {
+      setMatchError(
+        "We couldn't open this match. It may have been removed, or it isn't yours.",
+      );
+      setPhase("input");
+    }
+  }
+
+  // ?match mode: one click scores the pasted full JD, then tailors it. Each step is a
+  // normal capped call (/ondemand/score then /ondemand/tailor), and the score step's
+  // exact-match cache still applies — the single button bypasses neither caps nor
+  // cache, and never re-fetches the posting URL (it sends the pasted text).
+  async function scoreAndTailor() {
+    setError("");
+    setNotice("");
+    if (!text.trim()) {
+      setError("Paste the full job description to score and tailor it.");
+      return;
+    }
+    setPhase("loading");
+    try {
+      const accessToken = await token();
+      const scoreData = await backendPost<ScoreResponse>(
+        "/ondemand/score",
+        accessToken,
+        { url: null, text: text.trim(), force: false },
+      );
+      if (scoreData.status !== "ok") {
+        setNotice(scoreData.message);
+        setPhase("input");
+        return;
+      }
+      setId(scoreData.id);
+      setScore(scoreData.score);
+      setCached(scoreData.cached);
+      setApproved(scoreData.approved);
+      // Exact-match cache can return an already-tailored job — show it and stop, no
+      // second call.
+      if (scoreData.tailor) {
+        setTailor(scoreData.tailor);
+        setBullets(scoreData.tailor.tailored_bullets.map((b) => b.tailored));
+        setPhase("result");
+        return;
+      }
+      // Tailor the just-scored row. A tailor-cap returns limit_reached: the score
+      // still stands, and the result shows the (latched) Tailor button + the message.
+      const tailorData = await backendPost<TailorResponse>(
+        "/ondemand/tailor",
+        accessToken,
+        { id: scoreData.id },
+      );
+      setPhase("result");
+      if (tailorData.status !== "ok") {
+        setNotice(tailorData.message);
+        if (tailorData.status === "limit_reached") setTailorCapped(true);
+        return;
+      }
+      setTailor(tailorData.tailor);
+      setBullets(tailorData.tailor.tailored_bullets.map((b) => b.tailored));
+      setApproved(tailorData.approved);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setPhase("input");
+    }
+  }
+
   function reset() {
     setPhase("input");
     setUrl("");
@@ -178,6 +274,10 @@ export default function ScorePage() {
     setApproved(false);
     setError("");
     setNotice("");
+    // Leave ?match mode entirely: "Score another" returns to the normal score flow.
+    setMatchId(null);
+    setMatchCtx(null);
+    setMatchError("");
   }
 
   if (phase === "loading") {
@@ -365,6 +465,87 @@ export default function ScorePage() {
                 </button>
               </div>
             )}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ?match mode input: paste the full JD, then ONE combined "Score & tailor".
+  if (matchId) {
+    const matchLabel =
+      [matchCtx?.title, matchCtx?.company].filter(Boolean).join(" — ") ||
+      "this role";
+    return (
+      <div style={{ maxWidth: 640 }}>
+        <h1>Tailor for this match</h1>
+        {matchError ? (
+          <div className="alert alert-error">{matchError}</div>
+        ) : (
+          <>
+            <p className="muted">
+              Job boards only give us a preview of each posting. To tailor
+              accurately, open &ldquo;View posting,&rdquo; copy the full
+              description, and paste it below.
+            </p>
+
+            <div className="card">
+              <div className="card-title">
+                Paste the full posting for {matchLabel}
+              </div>
+              {matchCtx?.source_url && (
+                <p className="hint" style={{ marginTop: 0 }}>
+                  <a
+                    href={matchCtx.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="linklike"
+                  >
+                    View posting →
+                  </a>
+                </p>
+              )}
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label className="label" htmlFor="match-text">
+                  Full job description
+                </label>
+                <textarea
+                  id="match-text"
+                  className="textarea"
+                  style={{ minHeight: 200 }}
+                  placeholder="Paste the full posting text here"
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {notice && (
+              <div
+                className="alert alert-info"
+                style={{ marginBottom: "1rem" }}
+              >
+                {notice}
+                {notice.toLowerCase().includes("profile") && (
+                  <>
+                    {" "}
+                    <Link href="/onboarding">Set up your profile</Link>.
+                  </>
+                )}
+              </div>
+            )}
+            {error && (
+              <div
+                className="alert alert-error"
+                style={{ marginBottom: "1rem" }}
+              >
+                {error}
+              </div>
+            )}
+
+            <button type="button" className="btn" onClick={scoreAndTailor}>
+              Score &amp; tailor
+            </button>
           </>
         )}
       </div>

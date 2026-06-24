@@ -120,6 +120,16 @@ export interface Match {
   } | null;
 }
 
+// The minimal context the score page's ?match=<id> tailor flow needs, returned by
+// POST /matches/context (JWT-scoped to the caller's own match). No score/analysis —
+// that flow re-scores the user-pasted full JD.
+export interface MatchContext {
+  id: string;
+  title: string | null;
+  company: string | null;
+  source_url: string | null;
+}
+
 // A saved tailoring row (read via RLS — only ever the user's own).
 export interface Tailoring {
   id: string;
