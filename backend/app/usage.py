@@ -28,6 +28,15 @@ def _today_start_iso() -> str:
     return start.isoformat()
 
 
+def _month_start_iso() -> str:
+    """Start of the current calendar month at 00:00 UTC — the UTC equivalent of
+    Postgres `date_trunc('month', now())`. Monthly caps and the budget query share
+    this window, so they reset on the 1st (not a rolling 30 days)."""
+    now = datetime.now(UTC)
+    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return start.isoformat()
+
+
 def count_calls_today(client: Client, user_id: str, action: str | None = None) -> int:
     """How many agent calls this user has logged since 00:00 UTC. Pass `action`
     to count only one kind of call (e.g. 'enrich'), so a per-feature cap isn't
@@ -41,6 +50,54 @@ def count_calls_today(client: Client, user_id: str, action: str | None = None) -
     if action is not None:
         query = query.eq("action", action)
     return query.execute().count or 0
+
+
+def count_calls_this_month(client: Client, user_id: str, action: str) -> int:
+    """How many calls of `action` this user has logged since the 1st of the current
+    calendar month (UTC). Always per-action so the score and tailor monthly caps are
+    independent: a user who has exhausted their score cap can still tailor, and vice
+    versa. Rows from a previous month fall outside the `created_at >= month start`
+    window, so they never consume this month's allowance."""
+    return (
+        client.table("usage_log")
+        .select("id", count="exact")
+        .eq("user_id", user_id)
+        .eq("action", action)
+        .gte("created_at", _month_start_iso())
+        .execute()
+        .count
+        or 0
+    )
+
+
+def total_cost_this_month(client: Client) -> float:
+    """Sum of `cost_estimate` across ALL users for the current calendar month (UTC).
+    cost_estimate is a coarse logging estimate that UNDER-counts real spend
+    (~15–18% low), so a ceiling compared against it should carry deliberate headroom."""
+    rows = (
+        client.table("usage_log")
+        .select("cost_estimate")
+        .gte("created_at", _month_start_iso())
+        .execute()
+        .data
+        or []
+    )
+    return round(sum(float(row.get("cost_estimate") or 0) for row in rows), 6)
+
+
+def is_over_monthly_budget(client: Client) -> bool:
+    """Whether global month-to-date spend exceeds MONTHLY_BUDGET_CEILING_USD.
+
+    BUILT BUT NOT YET CONSUMED. Nothing calls this to block work yet: there is no
+    automated scanner to pause, and the on-demand paths are gated by the per-user
+    caps instead. This is the kill-switch for the M5 digest scanner — wire it there
+    (skip/pause the scheduled scan when this is True) in a later M5 step. It lives
+    here, tested and ready, so that wiring is a one-liner.
+
+    The ceiling is set BELOW the real ~$20 Anthropic budget on purpose: cost_estimate
+    under-counts actual spend (~15–18% low), so the gap is deliberate headroom that
+    keeps the real bill under budget once this eventually gates."""
+    return total_cost_this_month(client) > settings.monthly_budget_ceiling_usd
 
 
 def log_call(

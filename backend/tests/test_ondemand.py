@@ -271,6 +271,7 @@ def _wire_score_job(monkeypatch, store, raw):
     monkeypatch.setattr(ondemand, "run_json_agent", lambda *a, **k: (raw, object()))
     monkeypatch.setattr(ondemand, "log_call", lambda *a, **k: None)
     monkeypatch.setattr(ondemand, "count_calls_today", lambda *a, **k: 0)
+    monkeypatch.setattr(ondemand, "count_calls_this_month", lambda *a, **k: 0)
     app.dependency_overrides[get_current_user_id] = lambda: "user-1"
 
 
@@ -312,3 +313,177 @@ def test_score_job_real_posting_is_saved(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert resp.json()["status"] == "ok"
     assert any(t == "tailorings" and op == "insert" for (t, op, _r) in store["writes"])
+
+
+# ===================== per-user monthly caps (score path) =====================
+_REAL_POSTING_RAW = {
+    "fit": 78,
+    "decision": "APPLY",
+    "scorable": True,
+    "role": "Data Scientist",
+    "company": "Acme",
+    "posting_seniority": "senior",
+    "cleared": ["Python"],
+    "gaps": [],
+    "referral_angle": "",
+    "pitch": "p",
+}
+
+
+def test_score_blocked_at_monthly_score_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    # At/over the monthly SCORE cap: no LLM call, no save, a score-specific message
+    # that names the limit and the reset.
+    store = {"parsed": {"seniority": "senior"}, "writes": []}
+    _wire_score_job(monkeypatch, store, _REAL_POSTING_RAW)
+    monkeypatch.setattr(
+        ondemand, "count_calls_this_month", lambda c, u, action: 999 if action == "score" else 0
+    )
+    try:
+        resp = client.post("/ondemand/score", json={"text": "Real posting with requirements."})
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+
+    body = resp.json()
+    assert body["status"] == "limit_reached"
+    assert "scored jobs" in body["message"] and "month" in body["message"]
+    assert not any(t == "tailorings" for (t, _op, _r) in store["writes"])  # nothing scored/saved
+
+
+def test_score_proceeds_under_monthly_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Under the cap (count returns 0 via the wire helper) the score runs and saves.
+    store = {"parsed": {"seniority": "senior"}, "writes": []}
+    _wire_score_job(monkeypatch, store, _REAL_POSTING_RAW)
+    try:
+        resp = client.post("/ondemand/score", json={"text": "Real posting with requirements."})
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+
+    assert resp.json()["status"] == "ok"
+    assert any(t == "tailorings" and op == "insert" for (t, op, _r) in store["writes"])
+
+
+def test_score_blocked_by_daily_cap_regardless_of_monthly(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Both checks are present. The daily brake is checked first, so a daily-capped
+    # user is blocked with the DAILY message even when the monthly count is free.
+    store = {"parsed": {"seniority": "senior"}, "writes": []}
+    _wire_score_job(monkeypatch, store, _REAL_POSTING_RAW)
+    monkeypatch.setattr(ondemand, "count_calls_today", lambda *a, **k: 999)  # daily maxed
+    monkeypatch.setattr(ondemand, "count_calls_this_month", lambda *a, **k: 0)  # monthly free
+    try:
+        resp = client.post("/ondemand/score", json={"text": "Real posting with requirements."})
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+
+    body = resp.json()
+    assert body["status"] == "limit_reached"
+    assert "today's limit" in body["message"]  # daily message, not the monthly one
+    assert not any(t == "tailorings" for (t, _op, _r) in store["writes"])
+
+
+# ===================== per-user monthly caps (tailor path) ====================
+class _TailorQuery:
+    """Returns a not-yet-tailored row for the tailorings select and a completed
+    profile for the profiles select; records writes (the final tailor update)."""
+
+    def __init__(self, store: dict):
+        self.store = store
+        self.table_name = ""
+        self.op = "select"
+
+    def table(self, name: str):
+        self.table_name = name
+        self.op = "select"
+        return self
+
+    def select(self, *a, **k):
+        self.op = "select"
+        return self
+
+    def update(self, row, **k):
+        self.op = "update"
+        self.store["writes"].append((self.table_name, "update", row))
+        return self
+
+    def eq(self, *a, **k):
+        return self
+
+    def limit(self, *a, **k):
+        return self
+
+    def execute(self):
+        if self.op == "select" and self.table_name == "tailorings":
+            return _Resp(
+                [
+                    {
+                        "id": "t1",
+                        "job_text": "Real job posting text.",
+                        "score": {"fit": 70, "decision": "APPLY"},
+                        "tailored_bullets": [],  # not yet tailored -> proceeds to LLM
+                        "analysis": "",
+                        "approved": False,
+                    }
+                ]
+            )
+        if self.op == "select" and self.table_name == "profiles":
+            return _Resp(
+                [
+                    {
+                        "parsed": self.store["parsed"],
+                        "raw_resume_text": "resume text",
+                        "onboarding_complete": True,
+                    }
+                ]
+            )
+        return _Resp([])
+
+
+def _wire_tailor(monkeypatch, store):
+    monkeypatch.setattr(ondemand, "get_service_client", lambda: _TailorQuery(store))
+    monkeypatch.setattr(
+        ondemand,
+        "run_json_agent",
+        lambda *a, **k: (
+            {
+                "tailored_bullets": [{"original": "a", "tailored": "b", "why": "c", "where": "d"}],
+                "analysis": "x",
+                "flags": [],
+            },
+            object(),
+        ),
+    )
+    monkeypatch.setattr(ondemand, "log_call", lambda *a, **k: None)
+    monkeypatch.setattr(ondemand, "count_calls_today", lambda *a, **k: 0)
+    app.dependency_overrides[get_current_user_id] = lambda: "user-1"
+
+
+def test_tailor_blocked_at_monthly_tailor_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    store = {"parsed": {"seniority": "senior"}, "writes": []}
+    _wire_tailor(monkeypatch, store)
+    monkeypatch.setattr(
+        ondemand, "count_calls_this_month", lambda c, u, action: 999 if action == "tailor" else 0
+    )
+    try:
+        resp = client.post("/ondemand/tailor", json={"id": "t1"})
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+
+    body = resp.json()
+    assert body["status"] == "limit_reached"
+    assert "resume tailors" in body["message"] and "month" in body["message"]
+    assert not any(op == "update" for (_t, op, _r) in store["writes"])  # no LLM call, no save
+
+
+def test_tailor_works_when_score_cap_is_hit(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Separate caps: a user who has exhausted the SCORE cap can still tailor.
+    store = {"parsed": {"seniority": "senior"}, "writes": []}
+    _wire_tailor(monkeypatch, store)
+    monkeypatch.setattr(
+        ondemand, "count_calls_this_month", lambda c, u, action: 999 if action == "score" else 0
+    )
+    try:
+        resp = client.post("/ondemand/tailor", json={"id": "t1"})
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+
+    assert resp.json()["status"] == "ok"
+    assert any(t == "tailorings" and op == "update" for (t, op, _r) in store["writes"])

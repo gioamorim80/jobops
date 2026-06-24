@@ -27,7 +27,25 @@ class Settings(BaseSettings):
     admin_user_ids: str = ""
 
     # --- Guardrails ---
-    per_user_daily_llm_cap: int = 25
+    # Daily LLM-call cap across ALL of one user's agent actions. With the per-user
+    # MONTHLY caps below now doing cost-fairness, this is purely a runaway/abuse
+    # brake, so it's generous.
+    # NOTE FOR THE OPERATOR: prod (Railway) currently sets PER_USER_DAILY_LLM_CAP=50
+    # as an env var, which OVERRIDES this default. Raise it to 100 or remove the env
+    # var, otherwise the stale value wins and the new default has no effect.
+    per_user_daily_llm_cap: int = 100
+    # Per-user MONTHLY caps (calendar month, reset on the 1st, UTC). Separate caps so
+    # scoring and tailoring never compete: hitting one does not block the other. Both
+    # coexist with the daily brake — a call proceeds only if it clears BOTH the daily
+    # cap AND the relevant monthly cap.
+    per_user_monthly_score_cap: int = 50
+    per_user_monthly_tailor_cap: int = 10
+    # Global month-to-date budget ceiling (USD) across ALL users. BUILT BUT INERT for
+    # now (see usage.is_over_monthly_budget) — nothing consumes it yet; it is wired to
+    # the digest scanner in a later M5 step. Set BELOW the real ~$20 Anthropic budget
+    # on purpose: logged cost_estimate under-counts actual spend (~15–18% low), so the
+    # headroom keeps the real bill under budget once this eventually gates.
+    monthly_budget_ceiling_usd: float = 15.0
     # Coach chat turns are very cheap (~0.6¢ each); this cap only deters abuse,
     # so it's generous and counts ONLY enrich turns (one user message = one turn).
     enrich_daily_turn_cap: int = 50

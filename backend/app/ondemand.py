@@ -37,7 +37,7 @@ from app.config import settings
 from app.jobfetch import MAX_JOB_CHARS, UnreadableLink, fetch_job_text
 from app.llm import run_json_agent
 from app.supabase_client import get_service_client
-from app.usage import count_calls_today, log_call
+from app.usage import count_calls_this_month, count_calls_today, log_call
 
 router = APIRouter(prefix="/ondemand", tags=["ondemand"])
 logger = get_logger("jobops.ondemand")
@@ -353,13 +353,23 @@ def score_job(user_id: CurrentUserId, body: ScoreRequest) -> dict:
     if existing and not body.force:
         return _cached_score_response(existing)
 
-    # 4) Cost guardrail (only on a fresh run): per-user daily LLM-call cap.
+    # 4) Cost guardrails (only on a fresh run). Both must clear: the daily cap is the
+    #    runaway/abuse brake across all actions; the monthly SCORE cap does
+    #    cost-fairness and is independent of the tailor cap.
     if count_calls_today(client, user_id) >= settings.per_user_daily_llm_cap:
         return {
             "status": "limit_reached",
             "message": (
                 f"You've reached today's limit of {settings.per_user_daily_llm_cap} "
                 "agent calls. It resets at midnight UTC — see you then."
+            ),
+        }
+    if count_calls_this_month(client, user_id, "score") >= settings.per_user_monthly_score_cap:
+        return {
+            "status": "limit_reached",
+            "message": (
+                f"You've used all {settings.per_user_monthly_score_cap} scored jobs for "
+                "this month — resets on the 1st."
             ),
         }
 
@@ -494,13 +504,23 @@ def tailor_resume(user_id: CurrentUserId, body: TailorRequest) -> dict:
     raw_resume = profile_rows[0].get("raw_resume_text") or ""
     score = _normalize_score(row.get("score") or {})
 
-    # Cost guardrail: per-user daily LLM-call cap (shared with scoring/coach).
+    # Cost guardrails. Both must clear: the daily cap is the runaway/abuse brake
+    # (shared with scoring/coach); the monthly TAILOR cap does cost-fairness and is
+    # independent of the score cap, so hitting the score cap never blocks tailoring.
     if count_calls_today(client, user_id) >= settings.per_user_daily_llm_cap:
         return {
             "status": "limit_reached",
             "message": (
                 f"You've reached today's limit of {settings.per_user_daily_llm_cap} "
                 "agent calls. It resets at midnight UTC — see you then."
+            ),
+        }
+    if count_calls_this_month(client, user_id, "tailor") >= settings.per_user_monthly_tailor_cap:
+        return {
+            "status": "limit_reached",
+            "message": (
+                f"You've used all {settings.per_user_monthly_tailor_cap} resume tailors for "
+                "this month — resets on the 1st."
             ),
         }
 
