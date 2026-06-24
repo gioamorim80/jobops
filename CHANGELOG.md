@@ -1,5 +1,53 @@
 # CHANGELOG
 
+## 2026-06-24 — M5 cost controls, the Matches→Tailor fix, and a Prettier hook
+
+M5 continued guardrail-first: per-user monthly caps landed, the Matches→Tailor
+flow was fixed to tailor the complete posting, and frontend formatting is now
+caught locally. (M5 step 1, the email opt-in flag (09b42b3), shipped in the entry
+below.)
+
+**M5 step 2 — cost controls**
+- Per-user monthly caps + inert budget ceiling (e618b37): per-user monthly SCORE
+  (50) and TAILOR (10) caps that coexist with the daily runaway brake (raised to
+  100); calendar-month reset on the 1st; score and tailor capped separately so one
+  never blocks the other. A global monthly budget ceiling (`is_over_monthly_budget`,
+  $15) is built and unit-tested but INERT — wired to the digest scanner in a later
+  step. All four limits env-configurable.
+
+**Matches → Tailor fix**
+- Tailor button disables on a cap-limit response (c0bd8c1): the score-page Tailor
+  button latches disabled when a tailor call returns `limit_reached`, keyed off the
+  status (not message text or generic errors), so repeat clicks can't keep hitting
+  the cap.
+- Paste-full-JD score+tailor (f905a09): the /matches "Tailor" button now routes to
+  `/score?match=<id>` instead of an unfetchable Adzuna URL. A new JWT-scoped
+  `POST /matches/context` returns minimal match context (title/company/source_url,
+  no stale snippet score). `?match` mode shows a paste-the-full-posting view with
+  one "Score & tailor" button that scores then tailors the pasted COMPLETE JD — no
+  URL re-fetch, and tailoring runs on the full posting rather than the ~500-char
+  snippet. Caps + the exact-match cache are enforced by construction; the normal
+  Score-a-job path is unchanged. Cross-user isolation tested.
+
+**Tooling**
+- Prettier pre-commit hook (1a107d6): a local frontend Prettier hook (auto-fix +
+  restage, matching the ruff hooks), Prettier 3.4.2 pinned via pre-commit's own
+  node env so it runs in CI's quality job (no `npm install` there) and reads
+  `.prettierrc`. Closes the gap where frontend format issues only surfaced at CI's
+  `format:check`. Scoped to frontend file types; backend stays with ruff.
+
+**Decisions recorded (with the why)**
+- Tailoring runs on the COMPLETE posting, never the Adzuna ~500-char snippet. The
+  matches Tailor control routes the user to paste the full JD, which re-scores and
+  tailors in one click ("Score & tailor", matches-arrival path only). Truncation is
+  fine for triage scoring but is gated for tailoring, where accuracy matters.
+- Admin cap-exemption allowlist (Option 3): deferred to the post-milestone backlog.
+  In the interim, test-time cap bumps go through Railway env vars (revert before
+  launch — see STATE's launch checklist).
+- Config principle: a Railway env var earns its place only as a secret or an active
+  override. Inert defaults stay in code; `.env.example` is the catalog. (This is why
+  the budget ceiling and monthly caps are code defaults, not new prod env vars.)
+
 ## 2026-06-23/24 — Pre-M5 cleanup, the /matches cluster, and M5 step 1 (email opt-in)
 
 Cleared the pre-M5 backlog (correctness fixes + the /matches surface), recorded

@@ -1,7 +1,8 @@
 # ROADMAP — JobOps milestones
 
 Built one milestone at a time; a milestone is done only when its acceptance
-criteria pass AND it deploys. **M0 through M4 are done; M5 and M6 are planned.**
+criteria pass AND it deploys. **M0 through M4 are done; M5 is in progress
+(guardrail-first: steps 1–2 of 7 done); M6 is planned.**
 The on-demand link flow (M2) was sequenced ahead of the automated scanner
 (M3–M5) by design.
 
@@ -120,30 +121,45 @@ Goal: scored matches per user.
 honest rubric on Haiku with caching, and the Matches section shows each user only
 their own (RLS).
 
-## M5 — Scheduled scan + email digest + guardrails ⬜ PLANNED
+## M5 — Scheduled scan + email digest + guardrails ⬜ IN PROGRESS
 Goal: recurring alerts, safely. **Decision: digests surface the SCORE ONLY** —
 each match shows its fit score, band, and decision with an on-demand
 **"Tailor my resume for this"** button in the app. Tailoring is never run
 automatically; the user triggers it when they choose.
-- **Signup, not cadence.** A single "email me matches" opt-in, with no daily or
-  weekly toggle: the pool is not fresh enough daily to justify a cadence choice.
-- **Signal-gated send.** Send the top-N unsent matches about every two days, and
-  ONLY when there is genuine signal. Do not email mediocre jobs just because time
-  has passed. Track sent state so a match is never emailed twice.
-- **Recency is separate.** Recency is a ranking and flagging signal in the digest,
-  never baked into the fit score (the score stays pure; `matches.posted_at`
-  carries recency).
-- **Cheaper scheduled scoring.** Use the Batch API for the non-interactive
-  scheduled scoring (50 percent off, and it combines with prompt caching once
-  caching engages — see the M4 open item).
-- Digest agent (`docs/agents/DIGEST.md`) composes the score-only summary; Resend
-  sends; log to `alerts_log`.
-- Enforce the remaining guardrails (`docs/GUARDRAILS.md`): global monthly budget
-  ceiling, rate limiting, pause switch honored. (Per-user daily caps + usage
-  logging already shipped in M2.)
-**Done when:** a signed-up test user receives a correctly-scoped, score-only
-digest email when there is genuine signal, can click through to tailor on demand,
-a match is never re-sent, and exceeding a cap is blocked gracefully.
+
+**Build order — guardrail-first.** Reordered so the hard cost cap exists before the
+product opens up: a community launch is planned for July, and an automated loop
+without a budget ceiling could run up real bills on strangers. Cost controls come
+before the scanner, not after.
+1. **Opt-in flag — ✅ DONE.** A single `preferences.email_opt_in` (no cadence
+   toggle: the pool is not fresh enough daily to justify one). Migration 0010.
+2. **Cost controls / per-user caps + budget ceiling — ✅ DONE.** Per-user monthly
+   score (50) + tailor (10) caps coexisting with the daily brake; a global monthly
+   budget ceiling (`is_over_monthly_budget`) built but inert until the scanner wires
+   it. Per `docs/GUARDRAILS.md`. (Per-user daily caps + usage logging shipped in M2.)
+3. **Resend / email — ⬅ NEXT.** Wire Resend in the backend (the backend has never
+   sent mail; auth email is Supabase today). **Acceptance: a real email lands in a
+   real inbox, not spam.** DKIM/SPF for the domain were verified in M2.6.
+4. **Sent-state.** Track which matches were emailed so a match is never sent twice
+   (an `alerts_log` table and/or a sent marker on `matches`).
+5. **Digest composition.** The DIGEST.md agent composes the score-only summary.
+   **Manual-trigger first** (admin-gated, like M3/M4) before any scheduler.
+   **Double-gated** on `email_opt_in` AND `score >= score_threshold`. Score-only,
+   never auto-tailor; skip silently when there is no genuine signal.
+6. **Scheduler.** A background worker on Railway (none today), sending the top-N
+   unsent matches about every two days and only on genuine signal — with a **15-day
+   inactivity pause** so users who go quiet stop receiving email. Honors the
+   `paused` switch.
+7. **Batch API — deferrable.** Move the non-interactive scheduled scoring onto the
+   Batch API (50 percent off, combines with prompt caching once it engages).
+
+**Recency is separate** throughout: a ranking/flagging signal in the digest, never
+baked into the fit score (the score stays pure; `matches.posted_at` carries it).
+
+**Done when:** a signed-up test user receives a correctly-scoped, score-only digest
+email when there is genuine signal, can click through to tailor on demand (on the
+full posting, not the snippet), a match is never re-sent, and exceeding a cap is
+blocked gracefully.
 
 ## M6 — Optional capstone ⬜ PLANNED
 Pick any: Telegram digest channel; tailored-resume document export (docx/PDF);
