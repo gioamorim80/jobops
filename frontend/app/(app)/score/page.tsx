@@ -42,6 +42,10 @@ export default function ScorePage() {
   const [cached, setCached] = useState(false);
 
   const [tailoring, setTailoring] = useState(false);
+  // Latched true only after a cap (limit_reached) response from the tailor call,
+  // so the Tailor button can't be clicked again. NOT set by generic/network errors
+  // (those throw and land in catch) or by no_profile — only the cap response.
+  const [tailorCapped, setTailorCapped] = useState(false);
   const [approving, setApproving] = useState(false);
   const [approved, setApproved] = useState(false);
 
@@ -142,6 +146,12 @@ export default function ScorePage() {
       );
       if (data.status !== "ok") {
         setNotice(data.message);
+        // A cap response (daily or monthly tailor cap) comes back as limit_reached.
+        // Latch the button off so repeat clicks can't keep hitting the cap. Other
+        // non-ok statuses (e.g. no_profile) leave the button clickable.
+        if (data.status === "limit_reached") {
+          setTailorCapped(true);
+        }
         return;
       }
       setTailor(data.tailor);
@@ -164,6 +174,7 @@ export default function ScorePage() {
     setBullets([]);
     setCached(false);
     setTailoring(false);
+    setTailorCapped(false);
     setApproved(false);
     setError("");
     setNotice("");
@@ -255,7 +266,7 @@ export default function ScorePage() {
               type="button"
               className="btn"
               onClick={tailorResume}
-              disabled={tailoring}
+              disabled={tailoring || tailorCapped}
             >
               {tailoring ? (
                 <>
