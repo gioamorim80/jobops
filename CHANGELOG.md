@@ -1,5 +1,60 @@
 # CHANGELOG
 
+## 2026-06-23/24 — Pre-M5 cleanup, the /matches cluster, and M5 step 1 (email opt-in)
+
+Cleared the pre-M5 backlog (correctness fixes + the /matches surface), recorded
+the decisions that close out several open questions, and started M5 with the
+email opt-in flag. Migration order reminder: 0010 runs in Supabase before the
+M5-step-1 deploy.
+
+**Correctness / bug fixes**
+- Field-scoped merge on profile edit (f257e96): a settings save now replaces only
+  the form-owned fields and preserves coach-written `attribution_notes` from the
+  DB row, so a stale client can no longer wipe them.
+- 5xx observability (634ec7a): the real cause of a 5xx is now logged server-side,
+  PII-safe; the user-facing "coffee" message is unchanged.
+- Scorer-v2 (2d73597): adds a `scorable` flag (skip-save on non-postings),
+  `posting_seniority`, and a deterministic APPLY→STRETCH cap at ≥2 levels above the
+  target. Fixes Bug 1 (non-postings) and Bug 4 (auto-APPLY of thin/too-senior roles).
+- Bug 5 dedupe (9761a95): the prefilter collapses same title+company openings and
+  keeps the best-ranked instance; location is intentionally dropped, trading a few
+  merged distinct openings for fewer, stronger cards. Applies to future runs only.
+
+**/matches cluster + UX**
+- Threshold filter (edddde4) + context line (9b08560): `/matches` shows only
+  matches scoring at or above the user's `score_threshold`, with a self-explaining
+  line and a Settings link. The threshold check is written so the M5 digest reuses
+  the same rule.
+- Nav active-state (45ab474): the top nav now highlights the current route (the
+  highlight was never fully implemented); uses `aria-current` and a prefix guard so
+  `/scored` does not light up `/score`.
+- Per-row delete on /matches (fbe81af): delete a single match through a JWT-scoped
+  backend endpoint, keeping the `matches` table service-role-write-only.
+- Landing redirect (e16b735): logged-out visitors to app routes land on the
+  marketing page instead of being bounced silently to login.
+
+**M5 started**
+- Email opt-in (09b42b3): adds `preferences.email_opt_in` (bool, default false for
+  consent) via migration 0010, and replaces the alert-frequency dropdown with a
+  single "Email me new matches" toggle in onboarding and settings. The flag is
+  written but nothing reads it yet.
+
+**Decisions recorded (with the why)**
+- Bug 3 (legacy null-decision pills): WON'T-FIX. `decision` is null only on the
+  fixed set of pre-0008 legacy rows, which render harmlessly; every new row gets a
+  decision, and the threshold filter plus per-row delete handle stale rows.
+- Stale matches: covered by the threshold filter and the delete button, not by an
+  automatic re-score mechanism. Accepted residual: a high-scoring row with
+  now-stale reasoning must be deleted by hand.
+- Deep-link preservation after login: CONSIDERED, NOT WANTED. Shared links are
+  product intros, not deep links, so an unauthenticated visit should reach the
+  intro page rather than resume a specific destination.
+- M5 reorder: the budget guardrail and per-user monthly caps move BEFORE the
+  digest. A community launch is planned for July, so a hard cost cap must exist
+  before the product opens to strangers.
+- Design revamp: the pills and several surfaces read as AI-default (per feedback).
+  Deferred to post-M5 and done all at once via the design skills, not piecemeal.
+
 ## 2026-06-22 — Close M4 open items: LLM cap raised, caching declined, per-call model recorded
 
 **What was done**

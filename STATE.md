@@ -6,10 +6,16 @@ in `ARCHITECTURE.md`. Read CLAUDE.md first (it is the contract).
 
 ## Current position
 M0 through M4 are built and verified live, including the M2 flow polish, the M4
-decision-consistency fixes, and per-call model cost attribution. The scorer LLM
-cap (`PER_USER_DAILY_LLM_CAP`) is default 25 in config.py, set to 50 in prod
-(Railway). M4 core is complete bar one tick: confirm a full scoring run at cap=50.
-Active focus / next milestone is M5 (scheduled scanner + digest + email).
+decision-consistency fixes, and per-call model cost attribution. The full pre-M5
+cleanup is cleared (correctness fixes + the whole `/matches` surface), and M5 has
+started: step 1 is the email opt-in flag (`preferences.email_opt_in`).
+Active focus / next milestone is M5 (scheduled scanner + digest + email). The M5
+order was deliberately reset: cost controls FIRST (global budget ceiling +
+per-user monthly caps), THEN email/Resend, sent-state, digest composition,
+scheduler, and Batch API scoring. Reason: a community launch is planned for July,
+so a hard cost cap must exist before the product opens to strangers.
+The scorer LLM cap (`PER_USER_DAILY_LLM_CAP`) is default 25 in config.py, set to
+50 in prod (Railway).
 
 ## Stack and repo (quick orient)
 - Frontend: Next.js App Router + TypeScript on Vercel. Routes under
@@ -57,8 +63,8 @@ Active focus / next milestone is M5 (scheduled scanner + digest + email).
   confirmed. The scorer LLM cap is now 50 (was 25, which skipped 17 jobs in one
   run): `PER_USER_DAILY_LLM_CAP`, default 25 in config.py, set to 50 in prod
   (Railway). Each call's serving model is recorded in `usage_log.model` (migration
-  0009), so cost is attributed per model. M4 core is complete bar one tick: a full
-  scoring run at cap=50.
+  0009), so cost is attributed per model. M4 core is SEALED: a later
+  `/admin/score-matches` run at cap=50 returned `scored=18`, `skipped_for_cap=0`.
 - **M4 decision-consistency fixes (migration 0008).** Band 50–64 relabeled
   "Stretch" → "Moderate fit" (kills the band/decision word collision); the decision
   chip is framed "Decision: APPLY/STRETCH/SKIP" on `/score`, `/scored/[id]`, and
@@ -66,75 +72,70 @@ Active focus / next milestone is M5 (scheduled scanner + digest + email).
   same score + band + decision; the missing/invalid-decision fallback still
   defaults to STRETCH but now logs a WARNING instead of masking it. Scorer rubric
   unchanged — decision stays the model's holistic call, not a function of the score.
+- **Pre-M5 cleanup — cleared.** Correctness: field-scoped profile-edit merge
+  (f257e96), 5xx server-side cause logging (634ec7a), scorer-v2 with `scorable` +
+  `posting_seniority` + APPLY→STRETCH seniority cap (2d73597), prefilter
+  title+company dedupe (9761a95). The `/matches` surface: threshold filter (edddde4)
+  with a context line + Settings link (9b08560), consistent nav active-state
+  (45ab474), per-row delete via a JWT-scoped backend endpoint (fbe81af), and
+  logged-out app-route visits landing on the marketing page (e16b735).
+- **M5 step 1 — email opt-in (migration 0010).** `preferences.email_opt_in` (bool,
+  default false for consent) replaces the alert-frequency dropdown with a single
+  "Email me new matches" toggle in onboarding and settings; the backend writes the
+  flag instead of `alert_frequency`. `score_threshold` is unchanged. Nothing reads
+  the flag yet. Commit 09b42b3; migration 0010 is pending a manual apply in prod.
 
 ## Migrations
 Run in the Supabase SQL editor; all idempotent. Applied: 0001 (profiles +
 preferences), 0002 (tailorings + usage_log), 0003 (tailorings.applied_at), 0004
 (jobs pool), 0005 (jobs extra fields: salary_is_predicted, contract_time/type,
 category_tag), 0006 (tailorings role/company), 0007 (matches table), 0008
-(matches.decision), 0009 (usage_log.model, nullable, no backfill). 0008 and 0009
-are applied in prod.
+(matches.decision), 0009 (usage_log.model, nullable, no backfill), 0010
+(preferences.email_opt_in, bool, default false). 0008 and 0009 are applied in
+prod. 0010 is PENDING a manual apply in Supabase — run it BEFORE the M5-step-1
+deploy settles (the backend already writes `email_opt_in`).
 
 ## Open
-- Confirm a full scoring run at cap=50 has been executed — last tick before sealing
-  M4 core.
+- Apply migration 0010 (`preferences.email_opt_in`) in Supabase before the
+  M5-step-1 deploy settles.
 - Low-priority backlog: login email sender → noreply@myjobops.app via Cloudflare
   routing; clean company/role title on the "recently scored" list.
 
-Resolved this session: raised the LLM cap 25 → 50 (`PER_USER_DAILY_LLM_CAP`, env
-var; default 25 in config.py, set to 50 in prod on Railway); scorer prompt caching
-evaluated and DECLINED (prefix ~1.1k tokens is below Haiku 4.5's 4096 cacheable
-minimum and the per-job text dominates input — caching deferred to the tailor step,
-where a large stable per-user context repeats); the 0008 decision-consistency fixes
-verified live.
+Resolved this session: the full pre-M5 backlog (correctness fixes + the `/matches`
+surface) cleared; M5 step 1 (email opt-in) shipped; the M5 order reset to put cost
+controls before the digest. See CHANGELOG (2026-06-23/24) for the per-commit log
+and the recorded decisions.
 
-## Backlog (pre-M5 cleanup)
-Prioritized cleanup to clear before M5. One line each; tiers are priority order.
+## Backlog (pre-M5 cleanup) — CLEARED
+The prioritized pre-M5 cleanup is fully done. Per-commit detail and the recorded
+decisions are in CHANGELOG (2026-06-23/24); the standing decisions are kept here.
 
-Resolved this session (TIER 1 + TIER 2 cleared):
-- Merge-fix footgun — DONE: `/onboarding/profile` now does a server-side
-  field-scoped merge (replaces the form-owned fields, preserves `comp_floor` /
-  `attribution_notes` from the DB row), so a settings save can no longer wipe
-  coach-written attribution_notes. Commit f257e96.
-- Bug 2 (observability) — DONE: 5xx causes are now logged server-side (PII-safe),
-  so the real exception is visible in Railway. The user-facing "coffee" message is
-  unchanged. Commit 634ec7a.
-- Bugs 1 + 4 (scorer-v2) — DONE: the scorer emits `scorable` (skip-save on
-  non-postings — Bug 1) and `posting_seniority`, with a deterministic
-  APPLY->STRETCH cap at >=2 levels above target; the prompt no longer auto-APPLYs
-  thin or too-senior roles (Bug 4). Verified live (Capital One now STRETCH,
-  too-senior roles cap, non-postings show the "unreadable" notice). Commit 2d73597.
-- Bug 5 (matches dedupe) — DONE: the prefilter collapses same normalized
-  title+company openings (location intentionally dropped — fewer, stronger cards;
-  keeps the best-ranked instance), accepting that distinct same-title openings at
-  one company merge. Commit 9761a95. Prefilter-only; applies to FUTURE scoring
-  runs, not existing rows.
+Cleared:
+- Correctness: field-scoped profile-edit merge (f257e96), 5xx server-side cause
+  logging (634ec7a), scorer-v2 (`scorable` + `posting_seniority` + APPLY→STRETCH
+  seniority cap, 2d73597), prefilter title+company dedupe (9761a95).
+- `/matches` surface: threshold filter + context line + Settings link (edddde4,
+  9b08560), consistent nav active-state (45ab474), per-row delete (fbe81af),
+  logged-out app-route visits land on the marketing page (e16b735).
 
-STALE MATCHES (decision recorded — do NOT build a heavy auto-rescore mechanism):
-- Existing `matches` rows are not retroactively updated by scorer/prefilter changes
-  (the matcher skips job_ids already in `matches`). Decision: this is covered by
-  (a) the Matches threshold filter and (b) a per-row Delete button on Matches —
-  NOT by an automatic clear/re-score system. Accepted residual: a high-scoring
-  match with a now-stale decision/analysis won't be filtered and must be deleted
-  manually (cosmetic-ish, tolerated).
+Standing decisions (do not re-litigate):
+- STALE MATCHES — do NOT build an auto-rescore mechanism. Existing `matches` rows
+  are not retroactively updated by scorer/prefilter changes (the matcher skips
+  job_ids already in `matches`). This is covered by the threshold filter plus the
+  per-row Delete button. Accepted residual: a high-scoring row with now-stale
+  reasoning won't be filtered and must be deleted by hand (tolerated).
+- Bug 3 (legacy null-decision pills) — WON'T-FIX. `decision` is null only on the
+  fixed set of pre-0008 legacy rows, which render harmlessly; every new row gets a
+  decision, and the threshold filter + delete handle stale rows.
+- Deep-link preservation after login — NOT WANTED. Shared links are product
+  intros, not deep links; an unauthenticated visit should reach the intro page
+  rather than resume a specific destination.
 
-TIER 3 — /matches surface (all the same surface; build adjacent, one commit each):
-- Matches threshold filter: hide matches scoring below the user's `score_threshold`
-  (preferences). Write the "is this above the user's threshold?" check as a SHARED
-  predicate so the M5 digest email reuses the exact same rule — do not duplicate it.
-- Matches Delete button: per-row delete on `/matches` (mirror the Dashboard
-  scored-jobs Delete, but against the `matches` table). The Dashboard tailorings
-  list already has Delete; `/matches` has none yet.
-- Bug 3: legacy `matches` rows from before migration 0008 have `decision = NULL` ->
-  no pill (`{m.decision && …}` is falsy). Fix: render a fallback when decision is
-  null, or backfill/clear the legacy rows.
-
-TIER 4 — low-risk polish:
-- Nav active-state: MAKE CONSISTENT (not "add") — the active-route highlight works
-  on Matches but NOT on Dashboard; the logic exists but doesn't cover all routes.
-- Shared-link landing: `/home` and app routes bounce to login when logged out,
-  skipping the marketing/intro page; unauthenticated shared links should reach the
-  intro page, not silently redirect to login.
+Queued cleanup (small, do when convenient):
+- Drop the dead `preferences.alert_frequency` column in its own migration, now
+  that nothing reads or writes it (M5 step 1 retired it). Hold `preferences.paused`
+  and `preferences.channels` — they are kept for the M5 guardrails (pause switch)
+  and future multi-channel sends.
 
 RESOLVED (investigation done):
 - raw_resume_text: read by the TAILOR path only (verbatim into the tailor prompt);
@@ -159,7 +160,9 @@ QUEUED FEATURES (after the above):
   generate no-fabrication gate).
 
 ## Deferred (not blocking; intentional)
-- One coherent UX/design pass (hold all UI-polish items for it). Known item:
+- One coherent UX/design pass, done POST-M5 all at once via the design skills, not
+  piecemeal. Hold all UI-polish items for it. Driver: per feedback, the pills and
+  several surfaces read as AI-default and want an intentional revamp. Known item:
   `/scored/[id]` shows an empty "Suggested changes" section for un-tailored rows.
 - Re-scoring a job silently un-approves a previously approved tailoring (minor).
 - Whether user-pasted jobs should also feed the shared `jobs` pool (currently
@@ -176,20 +179,35 @@ QUEUED FEATURES (after the above):
   assume from the user-facing message.
 
 ## Next milestone: M5 — scheduled scan + email digest
-Design already sketched:
-- Single "email me matches" signup. No daily/weekly cadence toggle: the pool is
-  not fresh enough daily to justify one.
+Build order (reset this session — cost controls FIRST, because a July community
+launch means a hard cost cap must exist before opening to strangers):
+1. Cost controls — global monthly budget ceiling + per-user monthly caps, with a
+   pause switch. Per `docs/GUARDRAILS.md`. Must land before any automated loop.
+2. Email / Resend — wire Resend in the backend (net-new; auth email is handled by
+   Supabase today, the backend has never sent mail).
+3. Sent-state — track which matches were emailed so none is sent twice (net-new:
+   an `alerts_log` table and/or a sent marker on `matches`).
+4. Digest composition — the DIGEST.md agent: score-only, no auto-tailoring,
+   skip-if-no-signal.
+5. Scheduler — a background worker on Railway (net-new; no scheduler today).
+6. Batch API — move the scheduled, non-interactive scoring onto the Batch API
+   (50 percent off; net-new — all calls are synchronous today).
+
+Step 1 DONE: email opt-in flag (`preferences.email_opt_in`, migration 0010).
+
+Design decisions already fixed:
+- Single "email me matches" opt-in. No daily/weekly cadence toggle: the pool is
+  not fresh enough daily to justify one (shipped as the toggle in step 1).
 - Send the top-N unsent matches about every two days, and ONLY when there is
   genuine signal. Do not email mediocre jobs just because time has passed.
+- Surface contract: a match is shown on `/matches` AND emailed only when
+  `score >= score_threshold` (default 60, inclusive). The digest MUST reuse this
+  exact rule so the two surfaces never disagree.
 - Recency is a SEPARATE ranking and flagging signal in the digest, never baked
   into the fit score (the score stays pure; `matches.posted_at` carries recency).
-- Use the Batch API for the scheduled, non-interactive scoring (50 percent off).
-  Prompt caching does not help the scorer (prefix below the cacheable minimum); it
+- Prompt caching does not help the scorer (prefix below the cacheable minimum); it
   is deferred to the tailor step.
-- Track sent state so a match is not emailed twice.
-- Email via Resend; respect the remaining guardrails in `docs/GUARDRAILS.md`
-  (global monthly budget ceiling, pause switch). Agent spec in
-  `docs/agents/DIGEST.md`.
+- Agent spec in `docs/agents/DIGEST.md`; guardrails in `docs/GUARDRAILS.md`.
 
 ## How to trigger and verify (admin)
 Add your Supabase user UUID to `ADMIN_USER_IDS`. With a bearer token:
