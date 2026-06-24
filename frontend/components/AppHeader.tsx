@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { NavLinks } from "@/components/NavLinks";
+
 export function AppHeader({ email }: { email: string }) {
   return (
     <header className="app-header">
@@ -7,13 +9,7 @@ export function AppHeader({ email }: { email: string }) {
         <Link href="/home" className="brand">
           JobOps
         </Link>
-        <nav className="app-nav">
-          <Link href="/dashboard">Dashboard</Link>
-          <Link href="/matches">Matches</Link>
-          <Link href="/score">Score a job</Link>
-          <Link href="/coach">Coach</Link>
-          <Link href="/settings">Settings</Link>
-        </nav>
+        <NavLinks />
         <div className="app-header-right">
           <span className="user-email">{email}</span>
           <form action="/auth/signout" method="post">

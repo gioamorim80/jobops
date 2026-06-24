@@ -403,6 +403,13 @@ input[type="range"] {
 .app-nav a:hover {
   color: var(--text);
 }
+/* Active page: same text color as hover, plus weight, so the current route reads
+   as selected (not just hovered). Applies on mobile too — the responsive block
+   only adjusts layout, not link color. */
+.app-nav a[aria-current="page"] {
+  color: var(--text);
+  font-weight: 600;
+}
 .app-header-right {
   margin-left: auto;
   display: flex;
