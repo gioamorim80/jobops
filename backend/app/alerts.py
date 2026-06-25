@@ -49,9 +49,14 @@ def unsent_matches_for_user(client, user_id: str) -> list[dict]:
     inclusive gate `/matches` applies) and not already in alerts_log. Highest fit
     first. Scoped to user_id — never another user's matches or send history."""
     threshold = _effective_threshold(client, user_id)
+    # Embed the job's role/company/link so a consumer (the digest) can label each
+    # match without a second query — same `jobs(...)` embed `/matches` uses.
     matches = (
         client.table("matches")
-        .select("id, job_id, score, band, decision, analysis, posted_at")
+        .select(
+            "id, job_id, score, band, decision, analysis, posted_at, "
+            "jobs ( title, company, source_url )"
+        )
         .eq("user_id", user_id)
         .gte("score", threshold)
         .order("score", desc=True)

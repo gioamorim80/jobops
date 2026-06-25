@@ -21,6 +21,7 @@ from app.applog import get_logger
 from app.auth import CurrentUserId
 from app.config import settings
 from app.dedupe import upsert_jobs
+from app.digest import send_user_digest
 from app.mailer import send_email
 from app.matcher import score_shortlist
 from app.prefilter import DEFAULT_CAP, prefilter
@@ -49,6 +50,12 @@ class ScoreMatchesRequest(BaseModel):
 
 class TestEmailRequest(BaseModel):
     to: str  # recipient for the one-off test send
+
+
+class SendDigestsRequest(BaseModel):
+    # Test mode: digest ONLY this user (still opt-in gated). Omitted = real mode:
+    # every user with email_opt_in = true. user_id is never trusted for auth.
+    user_id: str | None = None
 
 
 def is_admin(user_id: str) -> bool:
@@ -240,3 +247,35 @@ def test_email(caller_id: CurrentUserId, body: TestEmailRequest) -> dict:
     # result carries only status/id/error — no PII — so it is safe to log and return.
     logger.info("test-email: admin=%s status=%s", caller_id[:8], result.get("status"))
     return result
+
+
+@router.post("/send-digests")
+def send_digests(caller_id: CurrentUserId, body: SendDigestsRequest) -> dict:
+    """M5 step 5: email each target user their unsent qualifying matches (score-only),
+    then mark those sent. NO scheduler — this is the manual trigger. ADMIN-GATED with
+    the same fail-closed ADMIN_USER_IDS allowlist as fetch-jobs/score-matches.
+
+    Targets: a given `user_id` (test mode), else ALL users with email_opt_in = true.
+    Each user is still double-gated inside send_user_digest (opt-in + score_threshold),
+    so a targeted opted-out user is skipped, not emailed. LLM-free: surfaces
+    already-scored matches, no Anthropic call."""
+    if not is_admin(caller_id):
+        logger.warning("send-digests denied: caller=%s not in admin allowlist", caller_id[:8])
+        raise HTTPException(status_code=403, detail="Not authorized to send digests.")
+
+    client = get_service_client()
+    if body.user_id:
+        targets = [body.user_id.strip()]
+    else:
+        rows = (
+            client.table("preferences").select("user_id").eq("email_opt_in", True).execute().data
+            or []
+        )
+        targets = [r["user_id"] for r in rows]
+
+    results = [send_user_digest(client, uid) for uid in targets]
+    sent = sum(1 for r in results if r.get("status") == "sent")
+    logger.info(
+        "send-digests done: admin=%s targeted=%s sent=%s", caller_id[:8], len(targets), sent
+    )
+    return {"status": "ok", "targeted": len(targets), "sent": sent, "results": results}

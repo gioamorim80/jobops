@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     # Coach chat turns are very cheap (~0.6¢ each); this cap only deters abuse,
     # so it's generous and counts ONLY enrich turns (one user message = one turn).
     enrich_daily_turn_cap: int = 50
+    # Max matches included in one digest email (top-N by score). The rest stay unsent
+    # and surface in the next run.
+    digest_max_matches: int = 5
 
     # --- CORS: comma-separated list of allowed frontend origins ---
     cors_origins: str = "http://localhost:3000"

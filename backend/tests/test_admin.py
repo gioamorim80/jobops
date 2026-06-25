@@ -65,6 +65,53 @@ def test_test_email_allows_admin_and_returns_result(monkeypatch: pytest.MonkeyPa
     assert calls["to"] == "ops@example.com"  # the gate passed the request through
 
 
+def test_send_digests_requires_auth() -> None:
+    response = client.post("/admin/send-digests", json={})
+    assert response.status_code == 401
+
+
+def test_send_digests_rejects_non_admin(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Non-admin -> 403; the per-user digest worker is never reached.
+    monkeypatch.setattr(settings, "admin_user_ids", "admin-1")
+
+    def _boom(*a, **k):
+        raise AssertionError("send_user_digest reached despite non-admin caller")
+
+    monkeypatch.setattr(admin_mod, "send_user_digest", _boom)
+    app.dependency_overrides[get_current_user_id] = lambda: "not-an-admin"
+    try:
+        response = client.post("/admin/send-digests", json={"user_id": "u1"})
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+    assert response.status_code == 403
+
+
+def test_send_digests_admin_targeted_user(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Admin + explicit user_id (test mode) -> only that user is processed, and the
+    # endpoint returns the aggregated summary. send_user_digest is faked (no network).
+    monkeypatch.setattr(settings, "admin_user_ids", "admin-1")
+    seen: list = []
+
+    def fake_digest(client_, user_id):
+        seen.append(user_id)
+        return {"user": user_id[:8], "status": "sent", "sent": 3}
+
+    monkeypatch.setattr(admin_mod, "send_user_digest", fake_digest)
+    # The endpoint builds a service client before delegating; stub it so the test
+    # needs no Supabase env (CI has none). In targeted mode the client is only passed
+    # to send_user_digest, which is faked above.
+    monkeypatch.setattr(admin_mod, "get_service_client", lambda: object())
+    app.dependency_overrides[get_current_user_id] = lambda: "admin-1"
+    try:
+        response = client.post("/admin/send-digests", json={"user_id": "target-user"})
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["targeted"] == 1 and body["sent"] == 1
+    assert seen == ["target-user"]  # only the targeted user, no fan-out
+
+
 def test_is_admin_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "admin_user_ids", "uid-1, uid-2")
     assert is_admin("uid-1") is True
