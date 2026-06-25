@@ -21,6 +21,7 @@ from app.applog import get_logger
 from app.auth import CurrentUserId
 from app.config import settings
 from app.dedupe import upsert_jobs
+from app.mailer import send_email
 from app.matcher import score_shortlist
 from app.prefilter import DEFAULT_CAP, prefilter
 from app.sources.adzuna import AdzunaSource
@@ -44,6 +45,10 @@ class FetchRequest(BaseModel):
 class ScoreMatchesRequest(BaseModel):
     user_id: str | None = None  # admin may target another user; defaults to the caller
     candidate_limit: int = 500  # cap on pool rows to prefilter (cost/perf bound)
+
+
+class TestEmailRequest(BaseModel):
+    to: str  # recipient for the one-off test send
 
 
 def is_admin(user_id: str) -> bool:
@@ -206,3 +211,32 @@ def score_matches(caller_id: CurrentUserId, body: ScoreMatchesRequest) -> dict:
         "candidates": len(candidates),
         **summary,
     }
+
+
+@router.post("/test-email")
+def test_email(caller_id: CurrentUserId, body: TestEmailRequest) -> dict:
+    """Send ONE test email via Resend to confirm backend email delivery works (M5
+    step 3) — NOT the digest, just a fixed subject/body. ADMIN-GATED with the same
+    fail-closed ADMIN_USER_IDS allowlist as fetch-jobs/score-matches: sending from
+    our verified domain to an arbitrary address must not be open to any authenticated
+    user (it would be a spam vector). Returns the helper's structured result
+    (message id or error) so the operator can confirm or diagnose."""
+    if not is_admin(caller_id):
+        logger.warning("test-email denied: caller=%s not in admin allowlist", caller_id[:8])
+        raise HTTPException(status_code=403, detail="Not authorized to send test email.")
+
+    result = send_email(
+        to=body.to,
+        subject="JobOps test email",
+        html=(
+            "<p>This is a test email from JobOps. If it reached your inbox, "
+            "backend email sending is working.</p>"
+        ),
+        text=(
+            "This is a test email from JobOps. If it reached your inbox, "
+            "backend email sending is working."
+        ),
+    )
+    # result carries only status/id/error — no PII — so it is safe to log and return.
+    logger.info("test-email: admin=%s status=%s", caller_id[:8], result.get("status"))
+    return result

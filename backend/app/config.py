@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     supabase_service_role_key: str | None = None
     resume_bucket: str = "resumes"
 
+    # --- Email (Resend) — the backend's transactional/digest sender ---
+    # resend_api_key is a SECRET, handled exactly like anthropic_api_key: no real
+    # default, read from env, never logged. alert_from_email is the verified sender
+    # on our Resend domain (e.g. noreply@myjobops.app).
+    resend_api_key: str | None = None
+    alert_from_email: str | None = None
+
     # --- Job sources (M3) ---
     adzuna_app_id: str | None = None
     adzuna_app_key: str | None = None
