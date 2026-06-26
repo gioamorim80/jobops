@@ -22,6 +22,17 @@ _CACHE_READ_MULT = 0.1
 _CACHE_WRITE_MULT = 1.25
 
 
+def is_cap_exempt(user_id: str) -> bool:
+    """Whether a user bypasses the PER-USER caps (owner/test accounts). Mirrors the
+    ADMIN_USER_IDS allowlist style. Empty list = nobody exempt (the safe default).
+    Exempt users STILL respect the global budget ceiling — this only skips per-user
+    cap blocks, never the global brake, and never the usage logging.
+
+    Lives here (not admin.py) so the cap-enforcing modules — ondemand, matcher —
+    can import it without the admin → scanner → matcher → ondemand import cycle."""
+    return user_id in settings.cap_exempt_user_id_list
+
+
 def _today_start_iso() -> str:
     now = datetime.now(UTC)
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)

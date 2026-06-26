@@ -7,6 +7,7 @@ the manual end-to-end test in the M2 docs.
 import app.ondemand as ondemand
 import pytest
 from app.auth import get_current_user_id
+from app.config import settings
 from app.jobfetch import extract_main_text
 from app.main import app
 from app.ondemand import _applied_at_iso, _clean_label, _normalize_score
@@ -487,3 +488,109 @@ def test_tailor_works_when_score_cap_is_hit(monkeypatch: pytest.MonkeyPatch) -> 
 
     assert resp.json()["status"] == "ok"
     assert any(t == "tailorings" and op == "update" for (t, op, _r) in store["writes"])
+
+
+# ===================== cap-exemption (per-user bypass, budget still applies) ====
+def test_exempt_user_bypasses_score_caps(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Over BOTH per-user caps, but exempt + under global budget -> scores anyway.
+    store = {"parsed": {"seniority": "senior"}, "writes": []}
+    _wire_score_job(monkeypatch, store, _REAL_POSTING_RAW)
+    monkeypatch.setattr(ondemand, "count_calls_today", lambda *a, **k: 999)
+    monkeypatch.setattr(ondemand, "count_calls_this_month", lambda *a, **k: 999)
+    monkeypatch.setattr(settings, "cap_exempt_user_ids", "user-1")
+    monkeypatch.setattr(ondemand, "is_over_monthly_budget", lambda c: False)
+    try:
+        resp = client.post("/ondemand/score", json={"text": "Real posting with requirements."})
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+
+    assert resp.json()["status"] == "ok"
+    assert any(t == "tailorings" and op == "insert" for (t, op, _r) in store["writes"])
+
+
+def test_exempt_user_still_blocked_by_global_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    # THE critical one: exempt bypasses per-user caps but NOT the global ceiling.
+    store = {"parsed": {"seniority": "senior"}, "writes": []}
+    _wire_score_job(monkeypatch, store, _REAL_POSTING_RAW)
+    monkeypatch.setattr(ondemand, "count_calls_today", lambda *a, **k: 0)  # under per-user
+    monkeypatch.setattr(ondemand, "count_calls_this_month", lambda *a, **k: 0)
+    monkeypatch.setattr(settings, "cap_exempt_user_ids", "user-1")
+    monkeypatch.setattr(ondemand, "is_over_monthly_budget", lambda c: True)  # over budget
+    try:
+        resp = client.post("/ondemand/score", json={"text": "Real posting with requirements."})
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+
+    body = resp.json()
+    assert body["status"] == "limit_reached"
+    assert "budget" in body["message"].lower()  # the global-budget message, not a per-user cap
+    assert not any(t == "tailorings" for (t, _op, _r) in store["writes"])  # nothing scored/saved
+
+
+def test_empty_exemption_means_caps_still_apply(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Default-safe: empty allowlist -> the caller is not exempt -> per-user cap blocks.
+    store = {"parsed": {"seniority": "senior"}, "writes": []}
+    _wire_score_job(monkeypatch, store, _REAL_POSTING_RAW)
+    monkeypatch.setattr(settings, "cap_exempt_user_ids", "")
+    monkeypatch.setattr(
+        ondemand, "count_calls_this_month", lambda c, u, action: 999 if action == "score" else 0
+    )
+    try:
+        resp = client.post("/ondemand/score", json={"text": "Real posting."})
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+
+    body = resp.json()
+    assert body["status"] == "limit_reached"
+    assert "scored jobs" in body["message"]  # per-user cap message (not the budget one)
+
+
+def test_usage_logged_for_exempt_user(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Exemption skips the cap BLOCK, not the logging — exempt spend still counts.
+    store = {"parsed": {"seniority": "senior"}, "writes": []}
+    _wire_score_job(monkeypatch, store, _REAL_POSTING_RAW)
+    monkeypatch.setattr(settings, "cap_exempt_user_ids", "user-1")
+    monkeypatch.setattr(ondemand, "is_over_monthly_budget", lambda c: False)
+    logged: list[str] = []
+    monkeypatch.setattr(
+        ondemand, "log_call", lambda client_, uid, action, usage, **k: logged.append(action)
+    )
+    try:
+        resp = client.post("/ondemand/score", json={"text": "Real posting."})
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+
+    assert resp.json()["status"] == "ok"
+    assert "score" in logged  # the exempt call was still logged
+
+
+def test_exempt_user_bypasses_tailor_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    store = {"parsed": {"seniority": "senior"}, "writes": []}
+    _wire_tailor(monkeypatch, store)
+    monkeypatch.setattr(ondemand, "count_calls_today", lambda *a, **k: 999)
+    monkeypatch.setattr(ondemand, "count_calls_this_month", lambda *a, **k: 999)
+    monkeypatch.setattr(settings, "cap_exempt_user_ids", "user-1")
+    monkeypatch.setattr(ondemand, "is_over_monthly_budget", lambda c: False)
+    try:
+        resp = client.post("/ondemand/tailor", json={"id": "t1"})
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+
+    assert resp.json()["status"] == "ok"
+    assert any(t == "tailorings" and op == "update" for (t, op, _r) in store["writes"])
+
+
+def test_exempt_tailor_still_blocked_by_global_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    store = {"parsed": {"seniority": "senior"}, "writes": []}
+    _wire_tailor(monkeypatch, store)
+    monkeypatch.setattr(settings, "cap_exempt_user_ids", "user-1")
+    monkeypatch.setattr(ondemand, "is_over_monthly_budget", lambda c: True)
+    try:
+        resp = client.post("/ondemand/tailor", json={"id": "t1"})
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+
+    body = resp.json()
+    assert body["status"] == "limit_reached"
+    assert "budget" in body["message"].lower()
+    assert not any(op == "update" for (_t, op, _r) in store["writes"])  # no tailor/save

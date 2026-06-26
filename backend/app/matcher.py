@@ -30,7 +30,7 @@ from app.applog import get_logger
 from app.config import settings
 from app.llm import run_cached_json_agent
 from app.ondemand import _normalize_score  # reuse the EXACT on-demand scorer normalization
-from app.usage import count_calls_today, log_call
+from app.usage import count_calls_today, is_cap_exempt, log_call
 
 logger = get_logger("jobops.matcher")
 
@@ -75,11 +75,19 @@ def score_shortlist(client, user_id: str, parsed: dict, shortlist: list[dict]) -
     to_score = [job for job in shortlist if job.get("id") and job["id"] not in already]
 
     # Cost guardrail: score only what fits under today's per-user cap; skip the
-    # rest and report it, rather than failing the run.
-    used = count_calls_today(client, user_id)
-    remaining = max(0, settings.per_user_daily_llm_cap - used)
-    will_score = to_score[:remaining]
-    skipped_cap = len(to_score) - len(will_score)
+    # rest and report it, rather than failing the run. Cap-exempt users (owner/test
+    # accounts) bypass this per-user cap and score the whole shortlist. The GLOBAL
+    # budget ceiling is enforced separately by the scanner loop (scan_all_opted_in),
+    # which applies to everyone — exempt users included — so this bypass cannot run
+    # away on the automated path.
+    if is_cap_exempt(user_id):
+        will_score = to_score
+        skipped_cap = 0
+    else:
+        used = count_calls_today(client, user_id)
+        remaining = max(0, settings.per_user_daily_llm_cap - used)
+        will_score = to_score[:remaining]
+        skipped_cap = len(to_score) - len(will_score)
 
     # The rubric + profile prefix is constant across every job in this run, so it
     # is cached; only the per-job snippet (the user turn) is uncached.

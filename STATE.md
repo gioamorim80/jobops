@@ -123,6 +123,14 @@ community launch.
   scheduler entrypoint `python -m app.scheduled` runs `scan_all_opted_in` then
   `digest_all_opted_in` and exits (0/1); the digest still runs when the scan is
   budget-skipped. Runs on the `jobops-scheduler` Railway cron service; verified live.
+- **Cap-exemption allowlist.** `CAP_EXEMPT_USER_IDS` (comma-separated, parsed like
+  `ADMIN_USER_IDS`; empty default = nobody exempt) exempts trusted user_ids
+  (owner/test accounts) from ALL per-user caps — the on-demand daily LLM cap, monthly
+  score cap, monthly tailor cap, and the matcher's daily cap — while STILL enforcing
+  the global `MONTHLY_BUDGET_CEILING_USD`. Usage is still logged for exempt users
+  (exemption skips the cap BLOCK, not the logging), so their spend counts toward the
+  global budget. `is_cap_exempt` lives in `usage.py` (not `admin.py`) to avoid the
+  `admin → scanner → matcher → ondemand → admin` import cycle.
 
 ## Migrations
 Run in the Supabase SQL editor; all idempotent. Applied: 0001 (profiles +
@@ -148,7 +156,9 @@ service. See CHANGELOG (2026-06-25) for the per-commit log and the recorded deci
 Still-open items to reconcile before opening to strangers:
 - **Revert the BACKEND web service's test-bumped `PER_USER_MONTHLY_TAILOR_CAP` to
   10** (the code default). The `jobops-scheduler` cron service already has 10; the
-  web service is the one to fix.
+  web service is the one to fix. Pair this with **`CAP_EXEMPT_USER_IDS=<owner uuid>`
+  on the backend** so the owner keeps headroom while the community gets the real cap.
+  (Add the owner uuid to the scheduler service too if owner scans should be uncapped.)
 - `PER_USER_MONTHLY_SCORE_CAP` → back to **50** if it was bumped during testing.
 - `PER_USER_DAILY_LLM_CAP`: if prod Railway still overrides it, set deliberately for
   launch (raise to 100 or remove the env var so the code default wins).
@@ -183,6 +193,13 @@ Standing decisions (do not re-litigate):
 - Deep-link preservation after login — NOT WANTED. Shared links are product
   intros, not deep links; an unauthenticated visit should reach the intro page
   rather than resume a specific destination.
+- Cap-exemption scope — KNOWN/ACCEPTED. `/admin/score-matches` (a manual,
+  admin-gated trigger) does NOT check the global budget ceiling for anyone — accepted
+  because it's a deliberate operator action, not the unattended loop (the scheduled
+  scanner IS budget-gated for everyone, exempt included). Revisit only if admin
+  scanning is opened to non-owners. Also: the coach turn cap
+  (`ENRICH_DAILY_TURN_CAP`) is intentionally NOT covered by the exemption — it's a
+  separate abuse-only cap, not one of the three per-user cost caps.
 
 ## Backlog (current)
 The active list, re-curated this session. Standing decisions are above; deeper
@@ -195,9 +212,9 @@ investigation notes are below.
   testing (revert before launch — see LAUNCH CHECKLIST).
 - Design revamp: pills-first, done all-at-once, post-M5 (see Deferred). Includes the
   digest email template and the Matches→Tailor button spacing.
-- Rewrite `test_usage.py::test_budget_ceiling_is_built_but_not_wired_to_block` — the
-  ceiling IS now wired (into the scanner), so the test name is stale. New assertion:
-  the ceiling gates the SCANNER but NOT ondemand / matcher / digest.
+- ~~Rewrite `test_usage.py::test_budget_ceiling_is_built_but_not_wired_to_block`~~ —
+  DONE. The test now asserts the ceiling is wired in the scanner AND the ondemand
+  exempt path, but NOT the digest (LLM-free) or matcher (relies on the scanner gate).
 - Usage indicator: show "X/Y tailors left this month" (and scores). Also upgrades
   the tailor cap-button from the reactive latch to a load-time disable.
 - Dead-column drop: drop `preferences.alert_frequency` in its own migration (nothing

@@ -37,7 +37,13 @@ from app.config import settings
 from app.jobfetch import MAX_JOB_CHARS, UnreadableLink, fetch_job_text
 from app.llm import run_json_agent
 from app.supabase_client import get_service_client
-from app.usage import count_calls_this_month, count_calls_today, log_call
+from app.usage import (
+    count_calls_this_month,
+    count_calls_today,
+    is_cap_exempt,
+    is_over_monthly_budget,
+    log_call,
+)
 
 router = APIRouter(prefix="/ondemand", tags=["ondemand"])
 logger = get_logger("jobops.ondemand")
@@ -47,6 +53,12 @@ logger = get_logger("jobops.ondemand")
 # Sonnet for the on-demand scorer and tailor today.
 SCORE_MODEL = "claude-sonnet-4-6"
 TAILOR_MODEL = "claude-sonnet-4-6"
+
+# Shown to a cap-exempt user when the GLOBAL monthly budget ceiling is reached — the
+# one brake that still applies to them (they bypass only the per-user caps).
+_BUDGET_REACHED_MESSAGE = (
+    "We've reached this month's overall usage budget. Scoring and tailoring will resume next month."
+)
 
 
 # --------------------------------- models -------------------------------------
@@ -353,25 +365,31 @@ def score_job(user_id: CurrentUserId, body: ScoreRequest) -> dict:
     if existing and not body.force:
         return _cached_score_response(existing)
 
-    # 4) Cost guardrails (only on a fresh run). Both must clear: the daily cap is the
-    #    runaway/abuse brake across all actions; the monthly SCORE cap does
-    #    cost-fairness and is independent of the tailor cap.
-    if count_calls_today(client, user_id) >= settings.per_user_daily_llm_cap:
-        return {
-            "status": "limit_reached",
-            "message": (
-                f"You've reached today's limit of {settings.per_user_daily_llm_cap} "
-                "agent calls. It resets at midnight UTC — see you then."
-            ),
-        }
-    if count_calls_this_month(client, user_id, "score") >= settings.per_user_monthly_score_cap:
-        return {
-            "status": "limit_reached",
-            "message": (
-                f"You've used all {settings.per_user_monthly_score_cap} scored jobs for "
-                "this month — resets on the 1st."
-            ),
-        }
+    # 4) Cost guardrails (only on a fresh run). Cap-exempt users (owner/test accounts)
+    #    bypass the PER-USER caps but STILL respect the global budget ceiling; everyone
+    #    else gets the per-user caps unchanged. The daily cap is the runaway/abuse brake
+    #    across all actions; the monthly SCORE cap does cost-fairness (independent of
+    #    the tailor cap).
+    if is_cap_exempt(user_id):
+        if is_over_monthly_budget(client):
+            return {"status": "limit_reached", "message": _BUDGET_REACHED_MESSAGE}
+    else:
+        if count_calls_today(client, user_id) >= settings.per_user_daily_llm_cap:
+            return {
+                "status": "limit_reached",
+                "message": (
+                    f"You've reached today's limit of {settings.per_user_daily_llm_cap} "
+                    "agent calls. It resets at midnight UTC — see you then."
+                ),
+            }
+        if count_calls_this_month(client, user_id, "score") >= settings.per_user_monthly_score_cap:
+            return {
+                "status": "limit_reached",
+                "message": (
+                    f"You've used all {settings.per_user_monthly_score_cap} scored jobs for "
+                    "this month — resets on the 1st."
+                ),
+            }
 
     # 5) Resolve the posting text: pasted text wins; otherwise fetch the URL once.
     job_text = pasted
@@ -504,25 +522,33 @@ def tailor_resume(user_id: CurrentUserId, body: TailorRequest) -> dict:
     raw_resume = profile_rows[0].get("raw_resume_text") or ""
     score = _normalize_score(row.get("score") or {})
 
-    # Cost guardrails. Both must clear: the daily cap is the runaway/abuse brake
-    # (shared with scoring/coach); the monthly TAILOR cap does cost-fairness and is
-    # independent of the score cap, so hitting the score cap never blocks tailoring.
-    if count_calls_today(client, user_id) >= settings.per_user_daily_llm_cap:
-        return {
-            "status": "limit_reached",
-            "message": (
-                f"You've reached today's limit of {settings.per_user_daily_llm_cap} "
-                "agent calls. It resets at midnight UTC — see you then."
-            ),
-        }
-    if count_calls_this_month(client, user_id, "tailor") >= settings.per_user_monthly_tailor_cap:
-        return {
-            "status": "limit_reached",
-            "message": (
-                f"You've used all {settings.per_user_monthly_tailor_cap} resume tailors for "
-                "this month — resets on the 1st."
-            ),
-        }
+    # Cost guardrails. Cap-exempt users bypass the PER-USER caps but STILL respect the
+    # global budget ceiling; everyone else gets the per-user caps unchanged. The daily
+    # cap is the runaway/abuse brake (shared with scoring/coach); the monthly TAILOR
+    # cap is independent of the score cap, so hitting the score cap never blocks tailoring.
+    if is_cap_exempt(user_id):
+        if is_over_monthly_budget(client):
+            return {"status": "limit_reached", "message": _BUDGET_REACHED_MESSAGE}
+    else:
+        if count_calls_today(client, user_id) >= settings.per_user_daily_llm_cap:
+            return {
+                "status": "limit_reached",
+                "message": (
+                    f"You've reached today's limit of {settings.per_user_daily_llm_cap} "
+                    "agent calls. It resets at midnight UTC — see you then."
+                ),
+            }
+        if (
+            count_calls_this_month(client, user_id, "tailor")
+            >= settings.per_user_monthly_tailor_cap
+        ):
+            return {
+                "status": "limit_reached",
+                "message": (
+                    f"You've used all {settings.per_user_monthly_tailor_cap} resume tailors for "
+                    "this month — resets on the 1st."
+                ),
+            }
 
     tailor_raw, tailor_usage = run_json_agent(
         TAILOR_SYSTEM_PROMPT_V1,

@@ -17,6 +17,7 @@ from app.usage import (
     _month_start_iso,
     count_calls_this_month,
     count_calls_today,
+    is_cap_exempt,
     is_over_monthly_budget,
     total_cost_this_month,
 )
@@ -152,8 +153,29 @@ def test_is_over_monthly_budget_false_when_under(monkeypatch) -> None:
     assert is_over_monthly_budget(_SumClient(rows, {})) is False
 
 
-def test_budget_ceiling_is_built_but_not_wired_to_block() -> None:
-    # Inert by design: no request path references it yet. It is the kill-switch for
-    # the future digest scanner, to be wired in a later M5 step.
-    assert "is_over_monthly_budget" not in inspect.getsource(ondemand)
+# ============================ cap-exemption allowlist =========================
+def test_is_cap_exempt_allowlist(monkeypatch) -> None:
+    monkeypatch.setattr(usage.settings, "cap_exempt_user_ids", "u1, u2")
+    assert is_cap_exempt("u1") is True
+    assert is_cap_exempt("u2") is True
+    assert is_cap_exempt("someone-else") is False
+
+
+def test_is_cap_exempt_empty_means_nobody(monkeypatch) -> None:
+    # Safe default: an empty allowlist exempts no one.
+    monkeypatch.setattr(usage.settings, "cap_exempt_user_ids", "")
+    assert is_cap_exempt("u1") is False
+
+
+def test_budget_ceiling_gates_scanner_and_exempt_path_not_the_digest() -> None:
+    # The ceiling is now WIRED: it's the scanner kill-switch (scan_all_opted_in), and
+    # it also brakes cap-EXEMPT users on the on-demand path (their only remaining
+    # limit). The LLM-free digest must NEVER be budget-gated.
+    import app.digest as digest
+    import app.scanner as scanner
+
+    assert "is_over_monthly_budget" in inspect.getsource(scanner)  # scanner kill-switch
+    assert "is_over_monthly_budget" in inspect.getsource(ondemand)  # exempt-path brake
+    assert "is_over_monthly_budget" not in inspect.getsource(digest)  # digest never gated
+    # The matcher relies on the scanner's budget gate, not its own.
     assert "is_over_monthly_budget" not in inspect.getsource(matcher)

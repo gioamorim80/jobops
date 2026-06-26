@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     # Comma-separated Supabase user UUIDs allowed to trigger a manual job fetch.
     # Empty = locked (no one can trigger) — fail closed.
     admin_user_ids: str = ""
+    # Comma-separated user UUIDs EXEMPT from the per-user caps (owner/test accounts).
+    # They still respect the global MONTHLY_BUDGET_CEILING_USD. Empty = nobody exempt
+    # (all caps apply) — the safe default.
+    cap_exempt_user_ids: str = ""
 
     # --- Guardrails ---
     # Daily LLM-call cap across ALL of one user's agent actions. With the per-user
@@ -73,6 +77,10 @@ class Settings(BaseSettings):
     @property
     def admin_user_id_list(self) -> list[str]:
         return [uid.strip() for uid in self.admin_user_ids.split(",") if uid.strip()]
+
+    @property
+    def cap_exempt_user_id_list(self) -> list[str]:
+        return [uid.strip() for uid in self.cap_exempt_user_ids.split(",") if uid.strip()]
 
 
 settings = Settings()

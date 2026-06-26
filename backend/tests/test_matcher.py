@@ -76,3 +76,57 @@ def test_score_shortlist_skips_non_posting(monkeypatch: pytest.MonkeyPatch) -> N
     assert store["upserts"] == []  # nothing written
     assert summary["scored"] == 0
     assert summary["unscorable"] == 1
+
+
+def _real(idx: int) -> dict:
+    return {"id": f"job-{idx}", "description": f"Real posting {idx}", "posted_at": None}
+
+
+def test_score_shortlist_exempt_user_bypasses_daily_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    # count_calls_today is way over the cap, which would leave a normal user 0 budget;
+    # an exempt user scores the whole shortlist anyway. Global budget is enforced by
+    # the scanner loop, not here.
+    store = {"upserts": []}
+    raw = {
+        "fit": 80,
+        "decision": "APPLY",
+        "scorable": True,
+        "cleared": [],
+        "gaps": [],
+        "pitch": "p",
+    }
+    monkeypatch.setattr(matcher, "run_cached_json_agent", lambda *a, **k: (raw, object()))
+    monkeypatch.setattr(matcher, "log_call", lambda *a, **k: None)
+    monkeypatch.setattr(matcher, "count_calls_today", lambda *a, **k: 999)
+    monkeypatch.setattr(matcher, "is_cap_exempt", lambda uid: True)
+
+    summary = score_shortlist(
+        _FakeQuery(store), "user-1", {"seniority": "senior"}, [_real(1), _real(2)]
+    )
+    assert summary["scored"] == 2  # both scored despite the over-cap count
+    assert summary["skipped_for_cap"] == 0
+    assert len(store["upserts"]) == 2
+
+
+def test_score_shortlist_non_exempt_respects_daily_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Regression: a non-exempt user over the daily cap scores nothing (unchanged).
+    store = {"upserts": []}
+    raw = {
+        "fit": 80,
+        "decision": "APPLY",
+        "scorable": True,
+        "cleared": [],
+        "gaps": [],
+        "pitch": "p",
+    }
+    monkeypatch.setattr(matcher, "run_cached_json_agent", lambda *a, **k: (raw, object()))
+    monkeypatch.setattr(matcher, "log_call", lambda *a, **k: None)
+    monkeypatch.setattr(matcher, "count_calls_today", lambda *a, **k: 999)
+    monkeypatch.setattr(matcher, "is_cap_exempt", lambda uid: False)
+
+    summary = score_shortlist(
+        _FakeQuery(store), "user-1", {"seniority": "senior"}, [_real(1), _real(2)]
+    )
+    assert summary["scored"] == 0
+    assert summary["skipped_for_cap"] == 2
+    assert store["upserts"] == []
