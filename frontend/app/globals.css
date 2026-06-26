@@ -171,7 +171,7 @@ p {
   font-weight: 500;
   letter-spacing: 0.01em;
   padding: 0.6rem 1.25rem;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   border: 1px solid transparent;
   cursor: pointer;
   transition:
@@ -199,12 +199,12 @@ p {
   border-color: var(--lilac);
 }
 .btn-secondary {
-  background: var(--lilac-soft);
+  background: var(--surface-alt);
   color: var(--accent);
   border-color: transparent;
 }
 .btn-secondary:hover:not(:disabled) {
-  background: #e7dcec;
+  background: #ebe6dd;
 }
 .btn-sm {
   padding: 0.45rem 0.95rem;
@@ -291,19 +291,19 @@ input[type="range"] {
   flex: 1 1 220px;
 }
 
-/* chips */
+/* chips — display-only tags (skills, domains, roles, locations). Borderless soft
+   fill so a wall of ~25 reads as a tag cloud, not a grid of clickable buttons. */
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  gap: 0.5rem;
 }
 .chip {
   background: var(--surface-alt);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: var(--radius-pill);
-  padding: 0.3rem 0.8rem;
-  font-size: 0.85rem;
+  color: var(--text-muted);
+  border-radius: var(--radius-chip);
+  padding: 0.22rem 0.6rem;
+  font-size: 0.82rem;
 }
 
 /* badge */
@@ -314,7 +314,7 @@ input[type="range"] {
   font-size: 0.8rem;
   letter-spacing: 0.03em;
   padding: 0.35rem 0.85rem;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-muted);
@@ -347,7 +347,7 @@ input[type="range"] {
   color: #7e372f;
 }
 .alert-info {
-  background: var(--info-bg);
+  background: var(--surface-alt);
   border-color: var(--border);
   color: var(--text-muted);
 }
@@ -535,9 +535,9 @@ input[type="range"] {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--lilac);
-  background: var(--lilac-soft);
-  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  background: var(--surface-alt);
+  border-radius: var(--radius-chip);
   padding: 0.18rem 0.55rem;
 }
 
@@ -590,27 +590,33 @@ input[type="range"] {
   font-size: 1rem;
   color: var(--text-faint);
 }
+/* Decision chips — intentional, not generic status pills: tight radius, small
+   letter-spaced caps, and a considered treatment that keeps the semantic split.
+   APPLY is a confident solid green (the "go"); STRETCH a quiet warm-ochre outline
+   (caution/middle — deliberately NOT lavender); SKIP a muted gray ghost. */
 .decision {
-  font-size: 0.78rem;
-  letter-spacing: 0.05em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 0.3rem 0.85rem;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border);
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-chip);
+  border: 1px solid transparent;
 }
 .decision-apply {
-  background: var(--success-bg);
-  color: #2f5a3f;
-  border-color: #cfe2d4;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 .decision-stretch {
-  background: var(--lilac-soft);
-  color: var(--accent);
-  border-color: transparent;
+  background: transparent;
+  color: #8a6336;
+  border-color: #d8c19a;
 }
 .decision-skip {
-  background: var(--surface-alt);
-  color: var(--text-muted);
+  background: transparent;
+  color: var(--text-faint);
+  border-color: var(--border-strong);
 }
 .band {
   font-family: var(--font-display), Georgia, serif;
