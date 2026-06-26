@@ -106,10 +106,12 @@ def send_user_digest(client, user_id: str) -> dict:
     """Compose + send one user's digest, then mark sent on success. Returns a
     per-user summary; never raises for the normal skip/fail cases."""
     # 1) DOUBLE-GATE, part one: opt-in. Never email someone who opted out, even if a
-    #    user_id explicitly targets them.
+    #    user_id explicitly targets them. Also skip PAUSED users (inactivity pause —
+    #    no point emailing matches to someone the scanner has paused, until they
+    #    return and are auto-unpaused).
     prefs = (
         client.table("preferences")
-        .select("email_opt_in")
+        .select("email_opt_in, paused")
         .eq("user_id", user_id)
         .limit(1)
         .execute()
@@ -118,6 +120,8 @@ def send_user_digest(client, user_id: str) -> dict:
     )
     if not (prefs and prefs[0].get("email_opt_in")):
         return {"user": user_id[:8], "status": "skipped_opt_out"}
+    if prefs[0].get("paused"):
+        return {"user": user_id[:8], "status": "skipped_paused"}
 
     # 2) Recipient address (profile read is for the email address ONLY — no PII else).
     profile = (
@@ -161,3 +165,52 @@ def send_user_digest(client, user_id: str) -> dict:
         "marked": marked,
         "message_id": result.get("id"),
     }
+
+
+# ------------------------------- inactivity reinvite ---------------------------
+def compose_reinvite_html() -> str:
+    """The one-time 'we paused your alerts, come back' email. No PII — just a nudge
+    and a link into the app. Returning to the app is what auto-unpauses the user."""
+    link = f"{APP_BASE_URL}/home"
+    return (
+        '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;">'
+        '<p style="color:#111;">We\'ve paused your JobOps match emails since we '
+        "haven't seen you in a while.</p>"
+        f'<p style="margin:10px 0;"><a href="{link}" '
+        'style="color:#2563eb;text-decoration:none;font-weight:600;">Come back to '
+        "JobOps →</a> and we'll start sending matches again.</p>"
+        '<p style="margin-top:18px;color:#9ca3af;font-size:12px;">You can turn match '
+        "emails off anytime in Settings.</p>"
+        "</div>"
+    )
+
+
+def compose_reinvite_text() -> str:
+    return (
+        "We've paused your JobOps match emails since we haven't seen you in a while.\n"
+        f"Come back to JobOps to resume: {APP_BASE_URL}/home\n\n"
+        "You can turn match emails off anytime in Settings."
+    )
+
+
+def send_user_reinvite(client, user_id: str) -> dict:
+    """Send the ONE-TIME inactivity reinvite. Called by the scanner only when a user
+    first crosses into paused, and only for opted-in users (the scanner loops opted-in
+    users), so consent holds. PII-safe: the profile is read for the recipient address
+    only; the email carries no resume/profile/job content. Returns the send result."""
+    profile = (
+        client.table("profiles").select("email").eq("user_id", user_id).limit(1).execute().data
+        or []
+    )
+    to_email = (profile[0].get("email") if profile else None) or None
+    if not to_email:
+        return {"status": "error", "error": "no_email"}
+
+    result = send_email(
+        to=to_email,
+        subject="We've paused your JobOps match emails",
+        html=compose_reinvite_html(),
+        text=compose_reinvite_text(),
+    )
+    logger.info("reinvite: user=%s status=%s", user_id[:8], result.get("status"))
+    return result

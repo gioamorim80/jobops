@@ -253,6 +253,9 @@ def scan_all(caller_id: CurrentUserId) -> dict:
         "users": len(results),
         "scanned": scanned_ok,
         "scored": total_scored,
+        "paused_now": summary.get("paused_now", 0),
+        "skipped_paused": summary.get("skipped_paused", 0),
+        "unpaused": summary.get("unpaused", 0),
         "stopped_on_budget": summary["stopped_on_budget"],
         "results": results,
     }

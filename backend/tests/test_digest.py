@@ -8,7 +8,7 @@ ignore_duplicates), including the embedded `jobs` on matches rows.
 
 import app.digest as digest_mod
 from app.alerts import unsent_matches_for_user
-from app.digest import compose_digest_html, send_user_digest
+from app.digest import compose_digest_html, send_user_digest, send_user_reinvite
 
 
 class _Resp:
@@ -139,6 +139,34 @@ def test_targeted_user_sends_and_marks_topN(monkeypatch) -> None:
     sent_ids = {r["match_id"] for r in store["alerts_log"]}
     assert sent_ids == {"m1", "m2"}
     assert [m["id"] for m in unsent_matches_for_user(client, "A")] == ["m3"]
+
+
+def test_paused_user_is_skipped(monkeypatch) -> None:
+    # A paused (inactivity) user is not digested, even with qualifying matches.
+    captured: list = []
+    monkeypatch.setattr(digest_mod, "send_email", _ok_sender(captured))
+    store = _base_store(matches=[_match("m1", 90)])
+    store["preferences"][0]["paused"] = True
+    result = send_user_digest(_FakeClient(store), "A")
+
+    assert result["status"] == "skipped_paused"
+    assert captured == []  # not emailed while paused
+
+
+def test_reinvite_is_pii_safe_and_uses_mailer(monkeypatch) -> None:
+    captured: list = []
+    monkeypatch.setattr(digest_mod, "send_email", _ok_sender(captured))
+    store = {
+        "profiles": [{"user_id": "A", "email": "a@example.com", "raw_resume_text": "SECRET_RESUME"}]
+    }
+    result = send_user_reinvite(_FakeClient(store), "A")
+
+    assert result["status"] == "ok"
+    sent = captured[0]
+    assert sent["to"] == "a@example.com"
+    body = sent["html"] + (sent["text"] or "")
+    assert "SECRET_RESUME" not in body  # no PII in the reinvite
+    assert "/home" in body  # links back into the app (returning auto-unpauses)
 
 
 def test_opted_out_user_targeted_is_skipped(monkeypatch) -> None:

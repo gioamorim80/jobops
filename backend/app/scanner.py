@@ -9,8 +9,11 @@ commits in M5 step 6): the global budget ceiling kill-switch and the 15-day
 inactivity pause.
 """
 
+from datetime import UTC, datetime, timedelta
+
 from app.applog import get_logger
 from app.dedupe import upsert_jobs
+from app.digest import send_user_reinvite
 from app.matcher import score_shortlist
 from app.prefilter import DEFAULT_CAP, prefilter
 from app.sources.adzuna import AdzunaSource
@@ -22,6 +25,10 @@ logger = get_logger("jobops.scanner")
 # Source registry: enabling/disabling a source is a one-line change here, not a change
 # scattered through the codebase.
 SOURCES: list[JobSource] = [AdzunaSource()]
+
+# A user is "active" (and so worth scanning) if they signed in OR made any logged
+# action within this many days. Inactive users are paused after one reinvite.
+INACTIVITY_DAYS = 15
 
 # Pool columns the scorer needs (the score-from-pool candidate select).
 _CANDIDATE_COLUMNS = (
@@ -146,6 +153,75 @@ def scan_user(
     return result
 
 
+def _last_sign_in_at(client, user_id: str):
+    """The user's last_sign_in_at as a tz-aware datetime via the service-role admin
+    API, or None if unavailable/unparseable. Never raises (a lookup failure just
+    means we fall back to the usage_log signal)."""
+    try:
+        resp = client.auth.admin.get_user_by_id(user_id)
+    except Exception:
+        logger.warning("could not read last_sign_in_at for user=%s", user_id[:8])
+        return None
+    user = getattr(resp, "user", None)
+    if user is None and isinstance(resp, dict):
+        user = resp.get("user")
+    raw = getattr(user, "last_sign_in_at", None) if user is not None else None
+    if not raw:
+        return None
+    if isinstance(raw, datetime):
+        return raw if raw.tzinfo else raw.replace(tzinfo=UTC)
+    try:
+        dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
+def is_active_within(client, user_id: str, days: int = INACTIVITY_DAYS) -> bool:
+    """True if the user signed in OR logged ANY usage_log row within `days`. The OR is
+    deliberate: a user who logs in and browses but runs no LLM action still counts as
+    active (last_sign_in_at catches them; usage_log alone would not)."""
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+    last_sign_in = _last_sign_in_at(client, user_id)
+    if last_sign_in is not None and last_sign_in >= cutoff:
+        return True
+    rows = (
+        client.table("usage_log")
+        .select("id")
+        .eq("user_id", user_id)
+        .gte("created_at", cutoff.isoformat())
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    return bool(rows)
+
+
+def _set_paused(client, user_id: str, value: bool) -> None:
+    client.table("preferences").update({"paused": value}).eq("user_id", user_id).execute()
+
+
+def handle_user_activity(client, user_id: str, paused: bool) -> str:
+    """Apply the inactivity pause for one already-opted-in user. Returns the outcome:
+      'active'         — active, not paused        → caller scans
+      'unpaused'       — active, was paused        → cleared paused, caller scans
+      'paused_now'     — inactive, not paused      → set paused + sent ONE reinvite, skip
+      'skipped_paused' — inactive, already paused  → skip, send nothing (reinvite is once)
+    No LLM here — pausing/reinviting is cheap and runs even near the budget ceiling."""
+    if is_active_within(client, user_id):
+        if paused:
+            _set_paused(client, user_id, False)  # auto-unpause: they're back
+            return "unpaused"
+        return "active"
+    # Inactive:
+    if paused:
+        return "skipped_paused"  # already paused — reinvite was already sent once
+    _set_paused(client, user_id, True)
+    send_user_reinvite(client, user_id)  # one-time courteous nudge (opted-in only)
+    return "paused_now"
+
+
 def scan_all_opted_in(client) -> dict:
     """Run scan_user for every user with email_opt_in = true.
 
@@ -168,14 +244,19 @@ def scan_all_opted_in(client) -> dict:
         return {"status": "budget_exceeded", "scanned": 0, "stopped_on_budget": True, "results": []}
 
     rows = (
-        client.table("preferences").select("user_id").eq("email_opt_in", True).execute().data or []
+        client.table("preferences")
+        .select("user_id, paused")
+        .eq("email_opt_in", True)
+        .execute()
+        .data
+        or []
     )
-    user_ids = [r["user_id"] for r in rows]
 
     results: list[dict] = []
     stopped_on_budget = False
-    for uid in user_ids:
-        # Re-check before each user's scoring: stop the moment the ceiling is crossed.
+    for row in rows:
+        uid = row["user_id"]
+        # Budget gate runs FIRST: stop the moment the ceiling is crossed mid-run.
         if is_over_monthly_budget(client):
             logger.warning(
                 "scan-all STOPPED mid-run: budget ceiling reached after %s user(s) — "
@@ -184,18 +265,38 @@ def scan_all_opted_in(client) -> dict:
             )
             stopped_on_budget = True
             break
-        try:
-            results.append(scan_user(client, uid))
-        except Exception as exc:  # isolate per-user failures; keep scanning the rest
-            logger.exception("scan_user crashed for user=%s", uid[:8])
-            results.append({"user": uid[:8], "status": "error", "error": str(exc)})
 
+        # Then the inactivity gate (auto-unpause on return; pause + one reinvite when
+        # newly inactive; skip the already-paused). Only active users get scanned.
+        outcome = handle_user_activity(client, uid, bool(row.get("paused")))
+        if outcome in ("active", "unpaused"):
+            try:
+                result = scan_user(client, uid)
+            except Exception as exc:  # isolate per-user failures; keep scanning the rest
+                logger.exception("scan_user crashed for user=%s", uid[:8])
+                results.append({"user": uid[:8], "status": "error", "error": str(exc)})
+                continue
+            result["activity"] = outcome
+            results.append(result)
+        else:  # "paused_now" | "skipped_paused" — inactive, not scanned
+            results.append({"user": uid[:8], "status": outcome})
+
+    scanned = sum(1 for r in results if r.get("status") == "ok")
     logger.info(
-        "scan_all_opted_in done: scanned=%s stopped_on_budget=%s", len(results), stopped_on_budget
+        "scan_all_opted_in done: scanned=%s paused_now=%s skipped_paused=%s unpaused=%s "
+        "stopped_on_budget=%s",
+        scanned,
+        sum(1 for r in results if r.get("status") == "paused_now"),
+        sum(1 for r in results if r.get("status") == "skipped_paused"),
+        sum(1 for r in results if r.get("activity") == "unpaused"),
+        stopped_on_budget,
     )
     return {
         "status": "budget_exceeded" if stopped_on_budget else "ok",
-        "scanned": len(results),
+        "scanned": scanned,
+        "paused_now": sum(1 for r in results if r.get("status") == "paused_now"),
+        "skipped_paused": sum(1 for r in results if r.get("status") == "skipped_paused"),
+        "unpaused": sum(1 for r in results if r.get("activity") == "unpaused"),
         "stopped_on_budget": stopped_on_budget,
         "results": results,
     }
