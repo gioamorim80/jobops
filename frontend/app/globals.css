@@ -1,32 +1,44 @@
 :root {
-  /* ---- Chic Trancoso palette: soft purples + warm pastels, forest-green accent ---- */
-  --bg: #f8f4ef; /* warm ivory */
-  --bg-glow: #efe6f0; /* soft purple haze (used in a faint page wash) */
-  --surface: #ffffff; /* cards */
-  --surface-alt: #f3eef4; /* soft lavender — inputs, chips */
-  --surface-warm: #f7efe8; /* warm pastel — used sparingly */
+  /* ---- "Chic Trancoso": warm near-white paper, forest-green as the visible accent,
+     a quiet lavender reserved for focus/interaction. Color is relative (Albers):
+     surfaces and borders are tuned to sit on the lifted near-white base, not picked
+     in isolation. ---- */
+  --bg: #faf8f4; /* warm near-white page — lifted, less muddy than the old beige */
+  --bg-glow: #f6f2ec; /* near-bg warm whisper for the top wash — no purple haze */
+  --surface: #ffffff; /* cards: pure white, lifted off the bg by a hairline border */
+  --surface-alt: #f3f1ec; /* warm neutral inset — inputs, chips, alerts (not lavender) */
+  --surface-warm: #f7efe8; /* warm pastel — used sparingly (dropzone) */
   --text: #3b3340; /* deep aubergine-charcoal */
   --text-muted: #6e6576;
   --text-faint: #9a91a2;
-  --border: #ece4ea; /* hairline lilac-gray */
-  --border-strong: #ddd2dc;
-  --accent: #34503f; /* deep forest green — the sparing accent */
+  --border: #e8e3da; /* hairline warm gray — separates cards without floating them */
+  --border-strong: #d9d2c7; /* slightly stronger warm gray — input/ghost edges */
+  --accent: #34503f; /* deep forest green — the visible accent (unchanged) */
   --accent-hover: #3f6049;
   --accent-contrast: #ffffff;
-  --lilac: #8c79a6; /* soft purple — focus, secondary touches */
-  --lilac-soft: #efe7f2;
+  --lilac: #9991b5; /* desaturated warm lavender — the QUIET focus-state accent only */
+  --lilac-soft: #efe7f2; /* legacy soft-lavender tint (component usages revisited in commit 2) */
   --success: #4e7a5e;
   --success-bg: #e9f1eb;
   --danger: #a85248; /* muted terracotta-rose, never loud */
   --danger-bg: #f6e7e3;
   --info-bg: #f0eaf2;
 
-  --radius: 16px;
-  --radius-sm: 10px;
-  --radius-pill: 999px;
-  --shadow: 0 1px 2px rgba(59, 51, 64, 0.04),
-    0 18px 40px -24px rgba(59, 51, 64, 0.18);
-  --shadow-soft: 0 1px 2px rgba(59, 51, 64, 0.04);
+  /* Radius scale — varied by element type (one uniform radius is the AI tell).
+     Components migrate onto these named tiers in commit 2; the legacy aliases below
+     keep current usages valid and shift them at the token level for now. */
+  --radius-lg: 14px; /* large cards / panels — soft, generous */
+  --radius-md: 8px; /* buttons, inputs, alerts */
+  --radius-chip: 6px; /* chips, badges, small status tags — tight, reads as a tag */
+  --radius-pill: 999px; /* genuinely circular only (status dots) */
+  --radius: var(--radius-lg); /* legacy alias → cards */
+  --radius-sm: var(--radius-md); /* legacy alias → inputs/alerts (now medium) */
+
+  /* Cards use a hairline border, not a float (the drop-shadow was the template tell).
+     --shadow-soft stays barely-visible for things that genuinely sit ABOVE content
+     (e.g. a dropdown) — applied where needed in commit 2. */
+  --shadow: none;
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.05);
   --maxw: 940px;
 }
 
@@ -259,7 +271,9 @@ p {
 .textarea:focus {
   outline: none;
   border-color: var(--lilac);
-  box-shadow: 0 0 0 3px rgba(140, 121, 166, 0.22);
+  /* soft lavender focus ring (matches --lilac #9991b5); alpha lifted for a clearly
+     visible, accessible ring on the lighter background */
+  box-shadow: 0 0 0 3px rgba(153, 145, 181, 0.3);
 }
 .input::placeholder,
 .textarea::placeholder {
