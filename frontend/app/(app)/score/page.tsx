@@ -70,7 +70,10 @@ export default function ScorePage() {
   const [enrichInput, setEnrichInput] = useState("");
   const [enrichSending, setEnrichSending] = useState(false);
   const [enrichLimited, setEnrichLimited] = useState(false);
-  const [enrichApplied, setEnrichApplied] = useState(false);
+  // Set true after a confirmed apply + successful re-score, so the result view shows
+  // the "we re-scored against your updated profile" note. Cleared at the start of
+  // every score (so a normal score never shows it) and on reset.
+  const [rescored, setRescored] = useState(false);
 
   // Deep links. ?match=<id> opens the paste-the-full-JD tailor flow for a found
   // match (load context only, NO auto-fetch). The older ?url= path prefills and
@@ -101,13 +104,17 @@ export default function ScorePage() {
     return session.access_token;
   }
 
-  async function run(force = false, overrideUrl?: string) {
+  // Returns true only when a fresh score lands (used by the post-apply re-score to
+  // decide whether to show the "re-scored" note). Clears that note up front so a
+  // normal score never inherits it.
+  async function run(force = false, overrideUrl?: string): Promise<boolean> {
     setError("");
     setNotice("");
+    setRescored(false);
     const urlValue = (overrideUrl ?? url).trim();
     if (!urlValue && !text.trim()) {
       setError("Paste a job link or the posting text to score it.");
-      return;
+      return false;
     }
     setPhase("loading");
     try {
@@ -124,7 +131,7 @@ export default function ScorePage() {
       if (data.status !== "ok") {
         setNotice(data.message);
         setPhase("input");
-        return;
+        return false;
       }
 
       setId(data.id);
@@ -136,9 +143,11 @@ export default function ScorePage() {
       setCached(data.cached);
       setApproved(data.approved);
       setPhase("result");
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
       setPhase("input");
+      return false;
     }
   }
 
@@ -240,6 +249,24 @@ export default function ScorePage() {
     setEnrichThread((t) =>
       t.map((msg, i) => (i === index ? { ...msg, proposal: null } : msg)),
     );
+  }
+
+  // Fires ONLY on a confirmed apply (ProposalCard.onApplied, after /enrich/apply
+  // succeeded) — never on chat alone. The profile changed, so this job's saved score
+  // is stale: re-score THIS job against the updated profile via the existing force
+  // path (run(true) reads profiles.parsed fresh and overwrites the same row — no new
+  // scoring logic). We mark the proposal applied and drop its card first so it doesn't
+  // reappear as actionable when the result view remounts after the re-score. If the
+  // re-score is capped or errors, the profile change still stands (already saved) and
+  // run() surfaces the friendly notice/error; the note only shows on a real re-score.
+  async function handleEnrichApplied(index: number) {
+    setEnrichThread((t) =>
+      t.map((msg, i) =>
+        i === index ? { ...msg, applied: true, proposal: null } : msg,
+      ),
+    );
+    const ok = await run(true);
+    if (ok) setRescored(true);
   }
 
   function onEnrichKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -345,7 +372,7 @@ export default function ScorePage() {
     setEnrichInput("");
     setEnrichSending(false);
     setEnrichLimited(false);
-    setEnrichApplied(false);
+    setRescored(false);
     setError("");
     setNotice("");
     // Leave ?match mode entirely: "Score another" returns to the normal score flow.
@@ -387,6 +414,16 @@ export default function ScorePage() {
           </div>
         )}
 
+        {rescored && (
+          <div
+            className="alert alert-success"
+            style={{ marginBottom: "1.25rem" }}
+          >
+            Updated your profile and re-scored against it — here&apos;s your new
+            fit. Ready to apply? Tailor your resume for this role below.
+          </div>
+        )}
+
         <div className="card">
           <div className="score-head">
             <span className="score-num">
@@ -421,8 +458,8 @@ export default function ScorePage() {
           <p className="hint" style={{ marginTop: 0, marginBottom: "1rem" }}>
             Marked something as a gap that you actually have? Add the context
             and we&apos;ll update your profile — nothing saves until you
-            confirm. This updates your profile, not this job; re-score when
-            you&apos;re ready to see the new fit.
+            confirm. Once you confirm, we update your profile and re-score this
+            job for you automatically.
           </p>
 
           {enrichThread.map((m, i) => (
@@ -439,10 +476,13 @@ export default function ScorePage() {
               {m.role === "assistant" && m.proposal && (
                 <ProposalCard
                   proposal={m.proposal}
-                  onApplied={() => setEnrichApplied(true)}
+                  onApplied={() => handleEnrichApplied(i)}
                   onDismiss={() => dismissEnrichProposal(i)}
                   onError={setError}
                 />
+              )}
+              {m.role === "assistant" && m.applied && (
+                <p className="proposal-saved">Saved to your profile.</p>
               )}
             </Fragment>
           ))}
@@ -450,13 +490,6 @@ export default function ScorePage() {
           {enrichSending && (
             <div className="bubble bubble-agent typing">
               <span className="spinner" aria-hidden="true" /> thinking…
-            </div>
-          )}
-
-          {enrichApplied && (
-            <div className="alert alert-success" style={{ margin: "1rem 0" }}>
-              Saved to your profile. Re-score this job when you&apos;re ready to
-              see the updated fit.
             </div>
           )}
 
