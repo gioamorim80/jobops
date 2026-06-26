@@ -24,7 +24,7 @@ from pydantic import BaseModel
 from app.applog import get_logger
 from app.auth import CurrentUserId
 from app.config import settings
-from app.digest import send_user_digest
+from app.digest import digest_all_opted_in, send_user_digest
 from app.mailer import send_email
 from app.prefilter import DEFAULT_CAP, prefilter
 from app.scanner import (
@@ -206,20 +206,24 @@ def send_digests(caller_id: CurrentUserId, body: SendDigestsRequest) -> dict:
 
     client = get_service_client()
     if body.user_id:
-        targets = [body.user_id.strip()]
+        # Test mode: one targeted user (still opt-in/paused/threshold gated inside).
+        result = send_user_digest(client, body.user_id.strip())
+        summary = {
+            "targeted": 1,
+            "sent": 1 if result.get("status") == "sent" else 0,
+            "results": [result],
+        }
     else:
-        rows = (
-            client.table("preferences").select("user_id").eq("email_opt_in", True).execute().data
-            or []
-        )
-        targets = [r["user_id"] for r in rows]
+        # Real mode: the shared all-opted-in loop (also used by the scheduled run).
+        summary = digest_all_opted_in(client)
 
-    results = [send_user_digest(client, uid) for uid in targets]
-    sent = sum(1 for r in results if r.get("status") == "sent")
     logger.info(
-        "send-digests done: admin=%s targeted=%s sent=%s", caller_id[:8], len(targets), sent
+        "send-digests done: admin=%s targeted=%s sent=%s",
+        caller_id[:8],
+        summary["targeted"],
+        summary["sent"],
     )
-    return {"status": "ok", "targeted": len(targets), "sent": sent, "results": results}
+    return {"status": "ok", **summary}
 
 
 @router.post("/scan-all")

@@ -167,6 +167,21 @@ def send_user_digest(client, user_id: str) -> dict:
     }
 
 
+def digest_all_opted_in(client) -> dict:
+    """Send the digest to EVERY opted-in user. Each is still double-gated inside
+    send_user_digest (opt-in + not paused + score_threshold), so opted-out, paused, or
+    no-qualifying-match users are skipped, not emailed. LLM-free. Shared by the
+    /admin/send-digests no-user_id path and the scheduled run. Returns a summary."""
+    rows = (
+        client.table("preferences").select("user_id").eq("email_opt_in", True).execute().data or []
+    )
+    user_ids = [r["user_id"] for r in rows]
+    results = [send_user_digest(client, uid) for uid in user_ids]
+    sent = sum(1 for r in results if r.get("status") == "sent")
+    logger.info("digest_all_opted_in done: targeted=%s sent=%s", len(user_ids), sent)
+    return {"targeted": len(user_ids), "sent": sent, "results": results}
+
+
 # ------------------------------- inactivity reinvite ---------------------------
 def compose_reinvite_html() -> str:
     """The one-time 'we paused your alerts, come back' email. No PII — just a nudge
