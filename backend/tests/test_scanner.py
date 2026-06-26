@@ -33,7 +33,13 @@ class _OptedInClient:
         return _Resp(self._rows)
 
 
+def _under_budget(monkeypatch) -> None:
+    """Default: not over budget, so the gate lets the scan proceed."""
+    monkeypatch.setattr(scanner_mod, "is_over_monthly_budget", lambda client: False)
+
+
 def test_scan_all_runs_each_opted_in_user(monkeypatch) -> None:
+    _under_budget(monkeypatch)
     seen: list[str] = []
 
     def fake_scan_user(client, uid):
@@ -41,30 +47,96 @@ def test_scan_all_runs_each_opted_in_user(monkeypatch) -> None:
         return {"user": uid[:8], "status": "ok", "scored": 2}
 
     monkeypatch.setattr(scanner_mod, "scan_user", fake_scan_user)
-    results = scan_all_opted_in(_OptedInClient(["u1", "u2", "u3"]))
+    summary = scan_all_opted_in(_OptedInClient(["u1", "u2", "u3"]))
 
     assert seen == ["u1", "u2", "u3"]  # one call per opted-in user
-    assert len(results) == 3 and all(r["status"] == "ok" for r in results)
+    assert summary["status"] == "ok" and summary["stopped_on_budget"] is False
+    assert summary["scanned"] == 3
+    assert [r["status"] for r in summary["results"]] == ["ok", "ok", "ok"]
 
 
 def test_scan_all_isolates_one_user_failure(monkeypatch) -> None:
+    _under_budget(monkeypatch)
+
     def fake_scan_user(client, uid):
         if uid == "bad":
             raise RuntimeError("boom")
         return {"user": uid[:8], "status": "ok", "scored": 1}
 
     monkeypatch.setattr(scanner_mod, "scan_user", fake_scan_user)
-    results = scan_all_opted_in(_OptedInClient(["u1", "bad", "u2"]))
+    summary = scan_all_opted_in(_OptedInClient(["u1", "bad", "u2"]))
 
     # The failure is captured as an error entry; the other users still scan.
+    results = summary["results"]
     assert [r["status"] for r in results] == ["ok", "error", "ok"]
     assert "boom" in results[1]["error"]
     assert sum(1 for r in results if r["status"] == "ok") == 2
 
 
 def test_scan_all_empty_when_none_opted_in(monkeypatch) -> None:
+    _under_budget(monkeypatch)
     monkeypatch.setattr(scanner_mod, "scan_user", lambda *a, **k: {"status": "ok"})
-    assert scan_all_opted_in(_OptedInClient([])) == []
+    summary = scan_all_opted_in(_OptedInClient([]))
+    assert summary == {
+        "status": "ok",
+        "scanned": 0,
+        "stopped_on_budget": False,
+        "results": [],
+    }
+
+
+# ------------------------- budget kill-switch (scanner only) -------------------
+def test_scan_all_skips_everything_when_over_budget_at_top(monkeypatch) -> None:
+    monkeypatch.setattr(scanner_mod, "is_over_monthly_budget", lambda client: True)
+
+    def _boom(*a, **k):
+        raise AssertionError("scan_user must not run when over budget")
+
+    monkeypatch.setattr(scanner_mod, "scan_user", _boom)
+    summary = scan_all_opted_in(_OptedInClient(["u1", "u2"]))
+
+    assert summary == {
+        "status": "budget_exceeded",
+        "scanned": 0,
+        "stopped_on_budget": True,
+        "results": [],
+    }
+
+
+def test_scan_all_stops_mid_run_when_budget_crossed(monkeypatch) -> None:
+    # Budget check: False at top, False before u1, False before u2, True before u3.
+    seq = iter([False, False, False, True])
+
+    def budget(client):
+        try:
+            return next(seq)
+        except StopIteration:
+            return True
+
+    monkeypatch.setattr(scanner_mod, "is_over_monthly_budget", budget)
+
+    scanned: list[str] = []
+
+    def fake_scan_user(client, uid):
+        scanned.append(uid)
+        return {"user": uid[:8], "status": "ok", "scored": 1}
+
+    monkeypatch.setattr(scanner_mod, "scan_user", fake_scan_user)
+    summary = scan_all_opted_in(_OptedInClient(["u1", "u2", "u3"]))
+
+    assert scanned == ["u1", "u2"]  # u3 skipped — budget crossed before it
+    assert summary["status"] == "budget_exceeded"
+    assert summary["stopped_on_budget"] is True
+    assert summary["scanned"] == 2 and len(summary["results"]) == 2
+
+
+def test_digest_path_is_not_budget_gated() -> None:
+    # The LLM-free digest must NOT consult the budget ceiling — only the scanner does.
+    import inspect
+
+    import app.digest as digest_mod
+
+    assert "is_over_monthly_budget" not in inspect.getsource(digest_mod)
 
 
 # ----------------------------------- scan_user ---------------------------------

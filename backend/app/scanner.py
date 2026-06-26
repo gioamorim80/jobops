@@ -15,6 +15,7 @@ from app.matcher import score_shortlist
 from app.prefilter import DEFAULT_CAP, prefilter
 from app.sources.adzuna import AdzunaSource
 from app.sources.base import FetchResult, JobSource, JobSourceError, SearchCriteria
+from app.usage import is_over_monthly_budget
 
 logger = get_logger("jobops.scanner")
 
@@ -145,22 +146,56 @@ def scan_user(
     return result
 
 
-def scan_all_opted_in(client) -> list[dict]:
-    """Run scan_user for every user with email_opt_in = true. One user's failure is
-    captured and the loop continues — a single bad profile/source must not abort the
-    whole run. Returns a per-user result list."""
+def scan_all_opted_in(client) -> dict:
+    """Run scan_user for every user with email_opt_in = true.
+
+    BUDGET KILL-SWITCH: the scanner is the only LLM-spending path, so it honors the
+    global month-to-date ceiling (is_over_monthly_budget / MONTHLY_BUDGET_CEILING_USD).
+    Checked at the top (skip the whole run when already over) AND before each user (a
+    long multi-user run can cross the ceiling mid-way — stop scoring the rest rather
+    than blow well past it). The ceiling value already carries headroom for
+    cost_estimate under-counting, so we just honor the boolean — no extra math. This
+    gates ONLY scoring; the LLM-free digest is never gated by the budget.
+
+    One user's failure is captured and the loop continues — a single bad profile/source
+    must not abort the run. Returns a summary: {status, scanned, stopped_on_budget,
+    results}."""
+    if is_over_monthly_budget(client):
+        logger.warning(
+            "scan-all SKIPPED: monthly budget ceiling reached — no scoring this run "
+            "(digest still runs on existing matches)"
+        )
+        return {"status": "budget_exceeded", "scanned": 0, "stopped_on_budget": True, "results": []}
+
     rows = (
         client.table("preferences").select("user_id").eq("email_opt_in", True).execute().data or []
     )
     user_ids = [r["user_id"] for r in rows]
 
     results: list[dict] = []
+    stopped_on_budget = False
     for uid in user_ids:
+        # Re-check before each user's scoring: stop the moment the ceiling is crossed.
+        if is_over_monthly_budget(client):
+            logger.warning(
+                "scan-all STOPPED mid-run: budget ceiling reached after %s user(s) — "
+                "remaining users skipped this run",
+                len(results),
+            )
+            stopped_on_budget = True
+            break
         try:
             results.append(scan_user(client, uid))
         except Exception as exc:  # isolate per-user failures; keep scanning the rest
             logger.exception("scan_user crashed for user=%s", uid[:8])
             results.append({"user": uid[:8], "status": "error", "error": str(exc)})
 
-    logger.info("scan_all_opted_in done: users=%s", len(user_ids))
-    return results
+    logger.info(
+        "scan_all_opted_in done: scanned=%s stopped_on_budget=%s", len(results), stopped_on_budget
+    )
+    return {
+        "status": "budget_exceeded" if stopped_on_budget else "ok",
+        "scanned": len(results),
+        "stopped_on_budget": stopped_on_budget,
+        "results": results,
+    }

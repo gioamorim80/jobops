@@ -140,10 +140,15 @@ def test_scan_all_admin_runs_loop(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         admin_mod,
         "scan_all_opted_in",
-        lambda _client: [
-            {"user": "a", "status": "ok", "scored": 2},
-            {"user": "b", "status": "skipped_no_roles"},
-        ],
+        lambda _client: {
+            "status": "ok",
+            "scanned": 2,
+            "stopped_on_budget": False,
+            "results": [
+                {"user": "a", "status": "ok", "scored": 2},
+                {"user": "b", "status": "skipped_no_roles"},
+            ],
+        },
     )
     app.dependency_overrides[get_current_user_id] = lambda: "admin-1"
     try:
@@ -152,6 +157,7 @@ def test_scan_all_admin_runs_loop(monkeypatch: pytest.MonkeyPatch) -> None:
         app.dependency_overrides.pop(get_current_user_id, None)
     assert response.status_code == 200
     body = response.json()
+    assert body["status"] == "ok" and body["stopped_on_budget"] is False
     assert body["users"] == 2 and body["scanned"] == 1 and body["scored"] == 2
 
 

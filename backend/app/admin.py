@@ -235,20 +235,24 @@ def scan_all(caller_id: CurrentUserId) -> dict:
         raise HTTPException(status_code=403, detail="Not authorized to trigger scanning.")
 
     client = get_service_client()
-    results = scan_all_opted_in(client)
-    scanned = sum(1 for r in results if r.get("status") == "ok")
+    summary = scan_all_opted_in(client)
+    results = summary["results"]
+    scanned_ok = sum(1 for r in results if r.get("status") == "ok")
     total_scored = sum(r.get("scored", 0) for r in results)
     logger.info(
-        "scan-all done: admin=%s users=%s scanned=%s scored=%s",
+        "scan-all done: admin=%s status=%s users=%s scanned_ok=%s scored=%s stopped_on_budget=%s",
         caller_id[:8],
+        summary["status"],
         len(results),
-        scanned,
+        scanned_ok,
         total_scored,
+        summary["stopped_on_budget"],
     )
     return {
-        "status": "ok",
+        "status": summary["status"],  # "ok" | "budget_exceeded"
         "users": len(results),
-        "scanned": scanned,
+        "scanned": scanned_ok,
         "scored": total_scored,
+        "stopped_on_budget": summary["stopped_on_budget"],
         "results": results,
     }
