@@ -70,7 +70,14 @@ export default async function HomePage() {
         </Link>
       </div>
 
-      {recent && recent.length > 0 && (
+      {!recent || recent.length === 0 ? (
+        <div className="card" style={{ marginTop: "1.5rem" }}>
+          <p className="muted" style={{ margin: 0 }}>
+            No jobs checked yet.{" "}
+            <Link href="/score">Paste a link to check your first fit →</Link>
+          </p>
+        </div>
+      ) : (
         <div className="card" style={{ marginTop: "1.5rem" }}>
           <div className="section-head" style={{ marginBottom: "1rem" }}>
             <div className="card-title" style={{ margin: 0 }}>

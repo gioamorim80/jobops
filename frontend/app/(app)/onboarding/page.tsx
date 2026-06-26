@@ -135,7 +135,10 @@ export default function OnboardingPage() {
         preferences: { email_opt_in: emailOptIn, score_threshold: 60 },
       });
 
-      router.push("/dashboard");
+      // Land a just-onboarded user on the launcher ("what would you like to do?"),
+      // not the data-heavy Dashboard. Mirrors the login-callback routing, which
+      // already sends onboarded users to /home. Dashboard stays in the nav.
+      router.push("/home");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");

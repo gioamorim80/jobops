@@ -132,9 +132,9 @@ export default async function DashboardPage() {
       <div className="card">
         <div className="card-title">Scored jobs</div>
         {!tailorings || tailorings.length === 0 ? (
-          <p className="faint" style={{ margin: 0 }}>
-            No checked jobs yet.{" "}
-            <Link href="/score">Check your first job for fit</Link>.
+          <p className="muted" style={{ margin: 0 }}>
+            You haven&apos;t checked any jobs yet.{" "}
+            <Link href="/score">Check your first job for fit →</Link>
           </p>
         ) : (
           <div className="scored-list">
