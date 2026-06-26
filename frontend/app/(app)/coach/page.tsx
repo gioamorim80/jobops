@@ -8,9 +8,10 @@ import {
   type KeyboardEvent,
 } from "react";
 
+import { ProposalCard } from "@/components/ProposalCard";
 import { backendPost } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
-import type { ChatMessage, EnrichResponse, Proposal } from "@/lib/types";
+import type { ChatMessage, EnrichResponse } from "@/lib/types";
 
 const WELCOME: ChatMessage = {
   role: "assistant",
@@ -21,80 +22,12 @@ const WELCOME: ChatMessage = {
     "we'll get the true parts into your profile. Where should we start?",
 };
 
-function changeLines(c: Proposal["changes"]): string[] {
-  const lines: string[] = [];
-  if (c.add_skills.length) lines.push(`Add skills: ${c.add_skills.join(", ")}`);
-  if (c.add_domains.length)
-    lines.push(`Add domains: ${c.add_domains.join(", ")}`);
-  if (c.add_target_roles.length)
-    lines.push(`Add target roles: ${c.add_target_roles.join(", ")}`);
-  if (c.add_attribution_notes.length)
-    lines.push(`Attribution note: ${c.add_attribution_notes.join(" · ")}`);
-  if (c.set_seniority) lines.push(`Set seniority: ${c.set_seniority}`);
-  if (c.set_remote_pref)
-    lines.push(`Set remote preference: ${c.set_remote_pref}`);
-  return lines;
-}
-
-function ProposalCard({
-  proposal,
-  applied,
-  applying,
-  onConfirm,
-  onDismiss,
-}: {
-  proposal: Proposal;
-  applied: boolean;
-  applying: boolean;
-  onConfirm: () => void;
-  onDismiss: () => void;
-}) {
-  return (
-    <div className="proposal">
-      <div className="proposal-title">Proposed update</div>
-      {proposal.summary && (
-        <p className="muted" style={{ margin: "0 0 0.6rem" }}>
-          {proposal.summary}
-        </p>
-      )}
-      <ul className="list-clean">
-        {changeLines(proposal.changes).map((line, i) => (
-          <li key={i}>{line}</li>
-        ))}
-      </ul>
-      {applied ? (
-        <p className="proposal-saved">Saved to your profile.</p>
-      ) : (
-        <div className="proposal-actions">
-          <button
-            type="button"
-            className="btn btn-sm"
-            onClick={onConfirm}
-            disabled={applying}
-          >
-            {applying ? "Saving…" : "Add to profile"}
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={onDismiss}
-            disabled={applying}
-          >
-            Not now
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function CoachPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [limited, setLimited] = useState(false);
   const [error, setError] = useState("");
-  const [applyingIndex, setApplyingIndex] = useState<number | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -147,25 +80,6 @@ export default function CoachPage() {
     }
   }
 
-  async function confirmProposal(index: number) {
-    const proposal = messages[index]?.proposal;
-    if (!proposal) return;
-    setApplyingIndex(index);
-    setError("");
-    try {
-      await backendPost("/enrich/apply", await token(), {
-        changes: proposal.changes,
-      });
-      setMessages((m) =>
-        m.map((msg, i) => (i === index ? { ...msg, applied: true } : msg)),
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setApplyingIndex(null);
-    }
-  }
-
   function dismissProposal(index: number) {
     setMessages((m) =>
       m.map((msg, i) => (i === index ? { ...msg, proposal: null } : msg)),
@@ -201,10 +115,8 @@ export default function CoachPage() {
             {m.role === "assistant" && m.proposal && (
               <ProposalCard
                 proposal={m.proposal}
-                applied={!!m.applied}
-                applying={applyingIndex === i}
-                onConfirm={() => confirmProposal(i)}
                 onDismiss={() => dismissProposal(i)}
+                onError={setError}
               />
             )}
           </Fragment>
