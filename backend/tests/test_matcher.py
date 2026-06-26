@@ -7,17 +7,20 @@ from app.matcher import MATCH_MODEL, score_band, score_shortlist
 
 def test_score_band_thresholds_match_frontend() -> None:
     # Mirrors lib/ui.ts fitBand so automated matches read like on-demand scores.
-    assert score_band(80) == "Strong fit"
-    assert score_band(90) == "Strong fit"
-    assert score_band(65) == "Solid fit"
-    assert score_band(79) == "Solid fit"
-    # 50–64 band is "Moderate fit", NOT "Stretch" — that word is reserved for the
-    # separate STRETCH decision label (avoids the vocabulary collision).
-    assert score_band(50) == "Moderate fit"
-    assert score_band(64) == "Moderate fit"
-    assert "Stretch" not in {score_band(s) for s in range(0, 101)}
-    assert score_band(49) == "Likely skip"
+    # Calibrated cutoffs: Strong >=74, Solid 62-73, Moderate 48-61, Likely skip <48.
+    # Boundary values (74/73, 62/61, 48/47) pin the exact cutoffs.
+    assert score_band(78) == "Strong fit"  # the all-time max now reads "Strong fit"
+    assert score_band(74) == "Strong fit"  # lower edge of Strong
+    assert score_band(73) == "Solid fit"  # just below Strong
+    assert score_band(72) == "Solid fit"  # the common cluster
+    assert score_band(62) == "Solid fit"  # lower edge of Solid
+    assert score_band(61) == "Moderate fit"  # just below Solid
+    assert score_band(48) == "Moderate fit"  # lower edge of Moderate
+    assert score_band(47) == "Likely skip"  # just below Moderate
     assert score_band(0) == "Likely skip"
+    # The band never uses "Stretch" — that word is reserved for the separate
+    # STRETCH decision label (avoids the vocabulary collision).
+    assert "Stretch" not in {score_band(s) for s in range(0, 101)}
 
 
 def test_matcher_uses_haiku_not_sonnet() -> None:

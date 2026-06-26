@@ -9,11 +9,14 @@ export const decisionClass: Record<Decision, string> = {
 // Qualitative band for the 0–100 fit score, so small run-to-run variance reads
 // as the same verdict rather than an inconsistency. Describes fit quality only —
 // it deliberately avoids the word "Stretch" so it never collides with the
-// separate STRETCH decision label (kept in sync with backend matcher.score_band).
+// separate STRETCH decision label. Cutoffs MUST stay identical to the backend
+// matcher.score_band so a stored band and a client-derived one never disagree.
+// LABELS ONLY: calibrated against the early score distribution (max observed ~78);
+// revisit as more data accumulates.
 export function fitBand(fit: number): string {
-  if (fit >= 80) return "Strong fit";
-  if (fit >= 65) return "Solid fit";
-  if (fit >= 50) return "Moderate fit";
+  if (fit >= 74) return "Strong fit";
+  if (fit >= 62) return "Solid fit";
+  if (fit >= 48) return "Moderate fit";
   return "Likely skip";
 }
 

@@ -38,6 +38,23 @@ the matcher skip writing a row. POSTING SENIORITY drives a deterministic cap in
 `_normalize_score`: if the posting is ≥2 levels above the user's target, APPLY is
 capped to STRETCH (the model's own judgment still applies first).
 
+## Fit bands (label only — does NOT change the score)
+The numeric `fit` is mapped to a qualitative band for display. This is a labelling
+layer over the unchanged score; it never alters the score or the rubric, and it is
+independent of the APPLY/STRETCH/SKIP decision (the two axes are separate — any band
+can carry any decision).
+- **Strong fit:** fit ≥ 74
+- **Solid fit:** fit 62–73
+- **Moderate fit:** fit 48–61
+- **Likely skip:** fit < 48
+
+These cutoffs were calibrated against the early score distribution (max observed fit
+~78, a cluster ~72, a middle in the 50s–60s, a tail below ~48), so "Strong fit" can
+actually appear instead of being unreachable. They are a current calibration, not a
+permanent truth — revisit as more scoring data accumulates. The cutoffs live in TWO
+places that MUST stay identical: `backend/app/matcher.score_band` and
+`frontend/lib/ui.ts::fitBand`.
+
 ## Calibration
 - Wish-list prose ("rockstar", "world-class") = ignore; score hard reqs only.
 - Meeting ~60% of listed requirements with strong domain overlap = APPLY.

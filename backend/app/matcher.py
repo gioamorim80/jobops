@@ -40,15 +40,21 @@ _SCORE_MAX_TOKENS = 1200
 
 
 def score_band(fit: int) -> str:
-    """Qualitative band for a 0–100 fit. Mirrors the frontend `fitBand` so an
-    automated match reads with the same verdict as an on-demand score. The band
-    describes fit quality only — it deliberately avoids the word "Stretch" so it
-    never collides with the separate STRETCH decision label."""
-    if fit >= 80:
+    """Qualitative band for a 0–100 fit. Mirrors the frontend `fitBand` EXACTLY so a
+    server-stored band and a client-derived one never disagree (keep the cutoffs in
+    sync). The band describes fit quality only — it deliberately avoids the word
+    "Stretch" so it never collides with the separate STRETCH decision label.
+
+    LABELS ONLY: these cutoffs map a score to a label; they never change the score or
+    the rubric. Calibrated against the early score distribution (max observed fit ~78,
+    a cluster ~72, a middle in the 50s–60s, a tail below ~48), so "Strong fit" can
+    actually appear. Revisit as more data accumulates — a current calibration, not a
+    permanent truth."""
+    if fit >= 74:
         return "Strong fit"
-    if fit >= 65:
+    if fit >= 62:
         return "Solid fit"
-    if fit >= 50:
+    if fit >= 48:
         return "Moderate fit"
     return "Likely skip"
 
