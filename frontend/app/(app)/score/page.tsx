@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState, type KeyboardEvent } from "react";
 
+import { ProposalCard } from "@/components/ProposalCard";
 import { RotatingStatus } from "@/components/RotatingStatus";
 import { backendPost } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
 import type {
+  ChatMessage,
+  EnrichResponse,
   MatchContext,
   ScoreResponse,
   ScoreResult,
@@ -56,6 +59,18 @@ export default function ScorePage() {
   const [tailorCapped, setTailorCapped] = useState(false);
   const [approving, setApproving] = useState(false);
   const [approved, setApproved] = useState(false);
+
+  // "Something's missing?" — a scoped mini-chat that reuses the profile-enrichment
+  // flow. The user adds true context the profile missed (cued by the gaps above);
+  // we send it to /enrich/chat and, if the coach proposes a change, render the same
+  // ProposalCard the Coach uses. Profile writes go ONLY through that card's
+  // /enrich/apply — never the job text, which stays out of enrichment entirely.
+  // The thread carries follow-up turns so the user can refine before confirming.
+  const [enrichThread, setEnrichThread] = useState<ChatMessage[]>([]);
+  const [enrichInput, setEnrichInput] = useState("");
+  const [enrichSending, setEnrichSending] = useState(false);
+  const [enrichLimited, setEnrichLimited] = useState(false);
+  const [enrichApplied, setEnrichApplied] = useState(false);
 
   // Deep links. ?match=<id> opens the paste-the-full-JD tailor flow for a found
   // match (load context only, NO auto-fetch). The older ?url= path prefills and
@@ -180,6 +195,60 @@ export default function ScorePage() {
     }
   }
 
+  // Send the user's added context (and any follow-up replies) to the enrichment
+  // coach. We post the running thread so the coach can revise its proposal across
+  // turns — the first call is just the single user message, exactly the minimal
+  // shape /enrich/chat needs since the profile is injected server-side. The job
+  // text is never sent here: enrichment describes profile-level true experience,
+  // not this posting. Profile writes happen only when the user confirms in the card.
+  async function sendEnrich() {
+    const content = enrichInput.trim();
+    if (!content || enrichSending) return;
+    setError("");
+    const next: ChatMessage[] = [...enrichThread, { role: "user", content }];
+    setEnrichThread(next);
+    setEnrichInput("");
+    setEnrichSending(true);
+    try {
+      const data = await backendPost<EnrichResponse>(
+        "/enrich/chat",
+        await token(),
+        { messages: next.map((m) => ({ role: m.role, content: m.content })) },
+      );
+      if (data.status !== "ok") {
+        // limit_reached or a backend error: show the coach's message in-thread and
+        // let the user try again. Only the daily limit disables further input.
+        setEnrichThread((t) => [
+          ...t,
+          { role: "assistant", content: data.message },
+        ]);
+        if (data.status === "limit_reached") setEnrichLimited(true);
+      } else {
+        setEnrichThread((t) => [
+          ...t,
+          { role: "assistant", content: data.reply, proposal: data.proposal },
+        ]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setEnrichSending(false);
+    }
+  }
+
+  function dismissEnrichProposal(index: number) {
+    setEnrichThread((t) =>
+      t.map((msg, i) => (i === index ? { ...msg, proposal: null } : msg)),
+    );
+  }
+
+  function onEnrichKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendEnrich();
+    }
+  }
+
   // Load the match context for ?match mode. JWT-scoped server-side: a match id that
   // isn't the caller's returns 404, so a user can't load another user's match here.
   async function loadMatch(id: string) {
@@ -272,6 +341,11 @@ export default function ScorePage() {
     setTailoring(false);
     setTailorCapped(false);
     setApproved(false);
+    setEnrichThread([]);
+    setEnrichInput("");
+    setEnrichSending(false);
+    setEnrichLimited(false);
+    setEnrichApplied(false);
     setError("");
     setNotice("");
     // Leave ?match mode entirely: "Score another" returns to the normal score flow.
@@ -340,6 +414,87 @@ export default function ScorePage() {
         <div className="card">
           <div className="card-title">Honest gaps</div>
           <List items={score.gaps} empty="No notable gaps." />
+        </div>
+
+        <div className="card">
+          <div className="card-title">Something&apos;s missing?</div>
+          <p className="hint" style={{ marginTop: 0, marginBottom: "1rem" }}>
+            Marked something as a gap that you actually have? Add the context
+            and we&apos;ll update your profile — nothing saves until you
+            confirm. This updates your profile, not this job; re-score when
+            you&apos;re ready to see the new fit.
+          </p>
+
+          {enrichThread.map((m, i) => (
+            <Fragment key={i}>
+              <div
+                className={
+                  m.role === "user"
+                    ? "bubble bubble-user"
+                    : "bubble bubble-agent"
+                }
+              >
+                {m.content}
+              </div>
+              {m.role === "assistant" && m.proposal && (
+                <ProposalCard
+                  proposal={m.proposal}
+                  onApplied={() => setEnrichApplied(true)}
+                  onDismiss={() => dismissEnrichProposal(i)}
+                  onError={setError}
+                />
+              )}
+            </Fragment>
+          ))}
+
+          {enrichSending && (
+            <div className="bubble bubble-agent typing">
+              <span className="spinner" aria-hidden="true" /> thinking…
+            </div>
+          )}
+
+          {enrichApplied && (
+            <div className="alert alert-success" style={{ margin: "1rem 0" }}>
+              Saved to your profile. Re-score this job when you&apos;re ready to
+              see the updated fit.
+            </div>
+          )}
+
+          {enrichLimited ? (
+            <div className="alert alert-info" style={{ marginTop: "1rem" }}>
+              You&apos;ve reached today&apos;s coaching limit. We&apos;ll be
+              right here tomorrow.
+            </div>
+          ) : (
+            <div
+              className="chat-input"
+              style={{ marginTop: enrichThread.length ? "1rem" : 0 }}
+            >
+              <textarea
+                className="textarea"
+                value={enrichInput}
+                onChange={(e) => setEnrichInput(e.target.value)}
+                onKeyDown={onEnrichKeyDown}
+                placeholder={
+                  enrichThread.length
+                    ? "Reply to refine it…"
+                    : "e.g. I actually led the Kubernetes migration — it just wasn't on my resume."
+                }
+                rows={2}
+                maxLength={2000}
+                disabled={enrichSending}
+                aria-label="Add context for your profile"
+              />
+              <button
+                type="button"
+                className="btn"
+                onClick={sendEnrich}
+                disabled={enrichSending || !enrichInput.trim()}
+              >
+                {enrichThread.length ? "Send" : "Suggest a profile update"}
+              </button>
+            </div>
+          )}
         </div>
 
         {notice && (
