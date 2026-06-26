@@ -22,9 +22,12 @@ class Settings(BaseSettings):
     # --- Email (Resend) — the backend's transactional/digest sender ---
     # resend_api_key is a SECRET, handled exactly like anthropic_api_key: no real
     # default, read from env, never logged. alert_from_email is the verified sender
-    # on our Resend domain (e.g. noreply@myjobops.app).
+    # on our Resend domain (e.g. noreply@myjobops.app). alert_from_name is the
+    # optional display name mail clients show (e.g. "JobOps"); when unset, the bare
+    # address is used (no change to the address itself).
     resend_api_key: str | None = None
     alert_from_email: str | None = None
+    alert_from_name: str | None = None
 
     # --- Job sources (M3) ---
     adzuna_app_id: str | None = None

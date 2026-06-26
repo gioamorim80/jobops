@@ -43,8 +43,15 @@ def send_email(to: str, subject: str, html: str, text: str | None = None) -> dic
             "detail": "RESEND_API_KEY and ALERT_FROM_EMAIL must both be set.",
         }
 
+    # Friendly From: "JobOps <noreply@myjobops.app>" when a display name is set;
+    # otherwise the bare address (current behavior — no regression if name is unset).
+    # The address itself never changes.
+    from_field = settings.alert_from_email
+    if settings.alert_from_name:
+        from_field = f"{settings.alert_from_name} <{settings.alert_from_email}>"
+
     payload: dict = {
-        "from": settings.alert_from_email,
+        "from": from_field,
         "to": [to],
         "subject": subject,
         "html": html,

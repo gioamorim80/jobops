@@ -47,6 +47,8 @@ _FAKE_KEY = "re_test_key_DO_NOT_LOG"
 def _configure(monkeypatch) -> None:
     monkeypatch.setattr(mailer_mod.settings, "resend_api_key", _FAKE_KEY)
     monkeypatch.setattr(mailer_mod.settings, "alert_from_email", "noreply@myjobops.app")
+    # Default: no display name -> bare address (deterministic regardless of env).
+    monkeypatch.setattr(mailer_mod.settings, "alert_from_name", None)
 
 
 def test_returns_error_when_not_configured(monkeypatch, email_logs) -> None:
@@ -102,6 +104,39 @@ def test_builds_correct_request_and_succeeds(monkeypatch, email_logs) -> None:
     assert "Secret Subject" not in logged
     assert "Secret Body" not in logged
     assert "user@example.com" in logged and "msg_abc123" in logged
+
+
+def test_from_uses_bare_address_when_no_display_name(monkeypatch) -> None:
+    # Fallback: no alert_from_name (set None by _configure) -> "from" is the bare
+    # address, exactly as before (no regression).
+    captured: dict = {}
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        captured["from"] = json["from"]
+        return _FakeResponse(200, {"id": "msg_x"})
+
+    _configure(monkeypatch)
+    monkeypatch.setattr(mailer_mod.httpx, "post", fake_post)
+
+    send_email("user@example.com", "Subj", "<p>Body</p>")
+    assert captured["from"] == "noreply@myjobops.app"
+
+
+def test_from_uses_display_name_when_set(monkeypatch) -> None:
+    # With a display name, "from" is 'Name <addr>' — the address is unchanged.
+    captured: dict = {}
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        captured["from"] = json["from"]
+        return _FakeResponse(200, {"id": "msg_x"})
+
+    _configure(monkeypatch)
+    monkeypatch.setattr(mailer_mod.settings, "alert_from_name", "JobOps")
+    monkeypatch.setattr(mailer_mod.httpx, "post", fake_post)
+
+    send_email("user@example.com", "Subj", "<p>Body</p>")
+    assert captured["from"] == "JobOps <noreply@myjobops.app>"
+    assert "noreply@myjobops.app" in captured["from"]  # address unchanged
 
 
 def test_resend_error_logs_status_not_body(monkeypatch, email_logs) -> None:
