@@ -1,5 +1,62 @@
 # CHANGELOG
 
+## 2026-06-25 — M5 step 6: the automated scan-and-digest loop, now autonomous on a Railway cron service
+
+M5 is complete. The scanner and digest, previously manual admin endpoints, now run
+on their own on a schedule: a Railway cron service runs one process that scans for
+new matches and emails the digests, then exits. The loop is budget-gated,
+inactivity-aware, and was verified live.
+
+**What shipped**
+- **6.1 — scan-all loop + shared scanner core (1c82dbe).** Extracted the per-user
+  fetch+score into `scanner.py` cores (`fetch_into_pool` / `score_from_pool` /
+  `scan_user`) that the existing `/admin/fetch-jobs` and `/admin/score-matches`
+  endpoints now call (one path, no duplication). Added `scan_all_opted_in`, which
+  loops every `email_opt_in = true` user with per-user failure isolation (one bad
+  profile/source never aborts the run), plus admin-gated `POST /admin/scan-all`.
+- **6.2 — budget kill-switch (214471d).** Wired the previously-inert
+  `is_over_monthly_budget` into `scan_all_opted_in` — checked at the top of the run
+  AND re-checked before each user, so a long run stops the moment month-to-date
+  spend crosses `MONTHLY_BUDGET_CEILING_USD` ($15) rather than blowing past it. This
+  activates the ceiling built inert in step 2. It gates the scanner ONLY (the only
+  LLM-spending path); the LLM-free digest is never blocked by it.
+- **6.3 — 15-day inactivity pause + one-time reinvite (8de33ba).** "Active" is a
+  UNION: a recent sign-in (`auth.users.last_sign_in_at`) OR any recent `usage_log`
+  row. Inactive users are skipped to save cost; the first time a user crosses into
+  inactive, `preferences.paused` is set and ONE courteous reinvite email is sent
+  (links to `/home` — returning to the app auto-unpauses them). Paused users are
+  skipped for BOTH scan and digest until they return. The reinvite respects consent
+  (only opted-in users are ever in the loop).
+- **6.4 — scheduler entrypoint (0a13801).** `python -m app.scheduled` runs
+  `scan_all_opted_in` then `digest_all_opted_in` and exits (0 on success, 1 if
+  either raised). Scan completes before digest so the digest emails freshly-scored
+  matches; the digest runs even when the scan was budget-skipped (it spends nothing
+  and emails already-scored matches); scan and digest failures are isolated; logs
+  are counts/status only (PII-safe). Extracted the shared `digest_all_opted_in`,
+  reused by the `/admin/send-digests` no-user_id path.
+- **Friendly sender name (8a58b19).** `ALERT_FROM_NAME=JobOps` so digests read from
+  "JobOps", not "noreply"; the address is unchanged and it falls back to the bare
+  address when unset.
+
+**Operational**
+- A separate Railway cron service (`jobops-scheduler`) runs `python -m app.scheduled`
+  on its own schedule, sharing the backend image and env. Cron schedule `0 11 */2 * *`
+  (7am ET, every other day, UTC).
+- Verified live: a scheduled run scanned, scored, and emailed a real digest, then
+  exited clean.
+
+**Decisions recorded (with the why)**
+- Scheduler mechanism: a Railway NATIVE CRON SERVICE (run-and-exit entrypoint), NOT
+  in-process APScheduler — avoids redeploy-miss and multi-replica double-fire for a
+  money-spending, user-emailing job.
+- "Active" is a UNION (sign-in OR usage_log) so a user who browses but runs no LLM
+  action isn't wrongly paused. It degrades to the usage_log signal if the admin API
+  is unavailable (fails toward "might keep an active user active", acceptable).
+- The reinvite link routes into the app (returning auto-unpauses), NOT a tokenized
+  resume endpoint — avoids adding a new secure-link surface.
+- The budget ceiling gates the scanner only; the digest is LLM-free and
+  intentionally ungated.
+
 ## 2026-06-24 — M5 cost controls, the Matches→Tailor fix, and a Prettier hook
 
 M5 continued guardrail-first: per-user monthly caps landed, the Matches→Tailor

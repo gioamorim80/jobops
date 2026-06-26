@@ -1,8 +1,9 @@
 # ROADMAP — JobOps milestones
 
 Built one milestone at a time; a milestone is done only when its acceptance
-criteria pass AND it deploys. **M0 through M4 are done; M5 is in progress
-(guardrail-first: steps 1–2 of 7 done); M6 is planned.**
+criteria pass AND it deploys. **M0 through M5 are done — the automated scan-and-digest
+loop is live and autonomous on a Railway cron service.** Remaining: resume document
+export and Batch scoring (M5 step 7).
 The on-demand link flow (M2) was sequenced ahead of the automated scanner
 (M3–M5) by design.
 
@@ -121,46 +122,45 @@ Goal: scored matches per user.
 honest rubric on Haiku with caching, and the Matches section shows each user only
 their own (RLS).
 
-## M5 — Scheduled scan + email digest + guardrails ⬜ IN PROGRESS
+## M5 — Scheduled scan + email digest + guardrails ✅ DONE
 Goal: recurring alerts, safely. **Decision: digests surface the SCORE ONLY** —
 each match shows its fit score, band, and decision with an on-demand
 **"Tailor my resume for this"** button in the app. Tailoring is never run
 automatically; the user triggers it when they choose.
 
-**Build order — guardrail-first.** Reordered so the hard cost cap exists before the
-product opens up: a community launch is planned for July, and an automated loop
-without a budget ceiling could run up real bills on strangers. Cost controls come
-before the scanner, not after.
-1. **Opt-in flag — ✅ DONE.** A single `preferences.email_opt_in` (no cadence
-   toggle: the pool is not fresh enough daily to justify one). Migration 0010.
-2. **Cost controls / per-user caps + budget ceiling — ✅ DONE.** Per-user monthly
-   score (50) + tailor (10) caps coexisting with the daily brake; a global monthly
-   budget ceiling (`is_over_monthly_budget`) built but inert until the scanner wires
-   it. Per `docs/GUARDRAILS.md`. (Per-user daily caps + usage logging shipped in M2.)
-3. **Resend / email — ⬅ NEXT.** Wire Resend in the backend (the backend has never
-   sent mail; auth email is Supabase today). **Acceptance: a real email lands in a
-   real inbox, not spam.** DKIM/SPF for the domain were verified in M2.6.
-4. **Sent-state.** Track which matches were emailed so a match is never sent twice
-   (an `alerts_log` table and/or a sent marker on `matches`).
-5. **Digest composition.** The DIGEST.md agent composes the score-only summary.
-   **Manual-trigger first** (admin-gated, like M3/M4) before any scheduler.
-   **Double-gated** on `email_opt_in` AND `score >= score_threshold`. Score-only,
-   never auto-tailor; skip silently when there is no genuine signal.
-6. **Scheduler.** A background worker on Railway (none today), sending the top-N
-   unsent matches about every two days and only on genuine signal — with a **15-day
-   inactivity pause** so users who go quiet stop receiving email. Honors the
-   `paused` switch.
-7. **Batch API — deferrable.** Move the non-interactive scheduled scoring onto the
-   Batch API (50 percent off, combines with prompt caching once it engages).
+Built guardrail-first (cost controls before the scanner), so the automated loop
+could never run up real bills before opening to strangers. All six steps shipped:
+1. **Opt-in flag — ✅** `preferences.email_opt_in` (single opt-in, no cadence
+   toggle), migration 0010.
+2. **Cost controls — ✅** Per-user monthly score (50) + tailor (10) caps alongside
+   the daily brake, plus a global monthly budget ceiling. Per `docs/GUARDRAILS.md`.
+3. **Resend / email — ✅** Backend email via Resend (`mailer.send_email`, PII-safe),
+   sending from `noreply@myjobops.app` as "JobOps".
+4. **Sent-state — ✅** `alerts_log` (migration 0011) so a match is never emailed
+   twice; `unsent_matches_for_user` reuses the `/matches` threshold gate.
+5. **Digest composition — ✅** Score-only digest, double-gated on `email_opt_in` AND
+   `score >= score_threshold`, marked sent only on send success; never auto-tailors.
+6. **Scheduler — ✅** Budget kill-switch wired into the scanner; a 15-day inactivity
+   pause with a one-time reinvite (returning auto-unpauses); a run-and-exit
+   `python -m app.scheduled` entrypoint running on a Railway native cron service.
+7. **Batch API — ⬜ DEFERRED.** Move the non-interactive scheduled scoring onto the
+   Batch API (50 percent off). A cost optimization, not required for the loop.
 
 **Recency is separate** throughout: a ranking/flagging signal in the digest, never
 baked into the fit score (the score stays pure; `matches.posted_at` carries it).
 
-**Done when:** a signed-up test user receives a correctly-scoped, score-only digest
-email when there is genuine signal, can click through to tailor on demand (on the
-full posting, not the snippet), a match is never re-sent, and exceeding a cap is
-blocked gracefully.
+**Done:** a signed-up user with opt-in on receives a correctly-scoped, score-only
+digest of their new matches, can click through to tailor on demand, a match is never
+re-sent, inactive users are paused with one reinvite, and exceeding a cap or the
+budget ceiling is handled gracefully. Verified live on the `jobops-scheduler` cron
+service: a scheduled run scanned, scored, and emailed a real digest, then exited clean.
 
-## M6 — Optional capstone ⬜ PLANNED
-Pick any: Telegram digest channel; tailored-resume document export (docx/PDF);
-referral-network features; share-link hardening + onboarding polish.
+## Remaining
+The live app does what it set out to do. Two planned items remain (see README):
+- **Resume document export** — generate a tailored resume file from approved
+  suggestions, behind an approve-then-generate gate so nothing is fabricated.
+- **Batch scoring (M5 step 7)** — use the Anthropic Batch API for scheduled scoring
+  to cut cost further.
+
+(The earlier "optional capstone" ideas — a Telegram digest channel, referral-network
+features — are not planned.)

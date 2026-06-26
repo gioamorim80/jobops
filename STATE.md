@@ -5,18 +5,17 @@ Self-contained snapshot for a fresh session. Dated history lives in
 in `ARCHITECTURE.md`. Read CLAUDE.md first (it is the contract).
 
 ## Current position
-M0 through M4 are built and verified live. M5 is underway, guardrail-first:
-step 1 (email opt-in flag) and step 2 (per-user monthly caps + inert budget
-ceiling) are done, and the Matches→Tailor flow is fixed to tailor the COMPLETE
-posting. **Next M5 piece is Resend/email** — the external dependency. Acceptance
-bar: a real digest email lands in a real inbox (not spam).
-The M5 order was deliberately reset to put cost controls BEFORE the digest, because
-a community launch is planned for July and a hard cost cap must exist before the
-product opens to strangers.
-Caps today: `PER_USER_DAILY_LLM_CAP` default 100 in config.py (a runaway/abuse
-brake; prod Railway still sets 50 — reconcile, see LAUNCH CHECKLIST);
+M0 through M5 are built and verified live. **M5 is COMPLETE** (steps 1–6). The
+automated scan-and-digest loop runs autonomously on a separate Railway cron service
+(`jobops-scheduler`, start command `python -m app.scheduled`, cron `0 11 */2 * *` =
+7am ET every other day). Verified live: a scheduled run scanned, scored, and emailed
+a real digest, then exited clean. Step 7 (Batch API for scheduled scoring) is
+DEFERRED — a cost optimization, not required for the loop.
+Caps today: `PER_USER_DAILY_LLM_CAP` default 100 in config.py (runaway/abuse brake);
 `PER_USER_MONTHLY_SCORE_CAP` 50, `PER_USER_MONTHLY_TAILOR_CAP` 10 (calendar-month,
-separate caps); `MONTHLY_BUDGET_CEILING_USD` 15 (global, built but INERT).
+separate caps); `MONTHLY_BUDGET_CEILING_USD` 15 (global — now WIRED as the scanner
+kill-switch). See LAUNCH CHECKLIST for env values still to reconcile before the July
+community launch.
 
 ## Stack and repo (quick orient)
 - Frontend: Next.js App Router + TypeScript on Vercel. Routes under
@@ -24,8 +23,10 @@ separate caps); `MONTHLY_BUDGET_CEILING_USD` 15 (global, built but INERT).
   tracker), `/matches` (automated matches), `/score` (paste a link), `/scored/[id]`
   (saved result), `/coach`, `/settings`, plus `/login` + `/auth/callback`.
 - Backend: FastAPI on Railway, managed with `uv`. Modules in `backend/app/`:
-  `onboarding`, `ondemand`, `enrich` (coach), `admin`, `matcher`, `prefilter`,
-  `dedupe`, `sources/` (Adzuna), `llm`, `usage`, `auth`, `supabase_client`,
+  `onboarding`, `ondemand`, `enrich` (coach), `admin`, `matches`, `matcher`,
+  `prefilter`, `dedupe`, `sources/` (Adzuna), `scanner` (per-user + all-opted-in
+  fetch+score), `alerts` (sent-state), `mailer` (Resend), `digest`, `scheduled`
+  (the run-and-exit cron entrypoint), `llm`, `usage`, `auth`, `supabase_client`,
   `config`. Agent prompts in `backend/agents/` (versioned strings).
 - Data/auth: Supabase (Postgres + magic-link + storage + RLS). Backend uses the
   service-role key only; frontend uses the anon key only.
@@ -39,9 +40,9 @@ separate caps); `MONTHLY_BUDGET_CEILING_USD` 15 (global, built but INERT).
   config.py; prod Railway still 50), `PER_USER_MONTHLY_SCORE_CAP` (50),
   `PER_USER_MONTHLY_TAILOR_CAP` (10), `MONTHLY_BUDGET_CEILING_USD` (15, inert),
   `ENRICH_DAILY_TURN_CAP` (default 50), `CORS_ORIGINS`. Live domain: myjobops.app.
-- Checks before commit: `uv run pytest` (118 backend tests), `uv run ruff check`,
+- Checks before commit: `uv run pytest` (171 backend tests), `uv run ruff check`,
   frontend `npm run lint` + `npm run build` + `npm run format:check`, and
-  `pre-commit run --all-files` (now includes a frontend Prettier hook).
+  `pre-commit run --all-files` (includes a frontend Prettier hook).
 
 ## Done and verified
 - **M0–M3 — sealed, verified live.** Bootstrap + deploy; auth + onboarding →
@@ -104,6 +105,24 @@ separate caps); `MONTHLY_BUDGET_CEILING_USD` 15 (global, built but INERT).
   (auto-fix + restage, like the ruff hooks), pinned to 3.4.2 via pre-commit's own
   node env so it works in CI's quality job and reads `.prettierrc`. Frontend format
   issues are now caught locally, not only at CI's `format:check`.
+- **M5 steps 3–5 — email + sent-state + digest.** Resend wired in the backend
+  (`mailer.send_email`, httpx, PII-safe logs, sends from `noreply@myjobops.app` with
+  display name `JobOps`; admin `POST /admin/test-email`, 8a7c05e + 8a58b19).
+  `alerts_log` sent-state (migration 0011, unique user_id+match_id, RLS select-own,
+  service-role writes) with `unsent_matches_for_user` (reuses the threshold gate) +
+  idempotent `mark_matches_sent` (42429a0). Digest composition: `send_user_digest`
+  (score-only, PII-safe, double-gated on opt-in + threshold, mark-on-send-success)
+  and admin `POST /admin/send-digests` (6ec804b).
+- **M5 step 6 — the autonomous loop (1c82dbe, 214471d, 8de33ba, 0a13801).**
+  `scanner.scan_all_opted_in` runs per-user fetch+score for every opted-in user
+  (shared cores reused by the admin endpoints; per-user failure isolated). It is
+  gated by the now-wired `is_over_monthly_budget` (top-of-run + per-user re-check,
+  scanner only) and the 15-day inactivity pause (active = recent sign-in OR recent
+  usage_log; first inactive crossing sets `preferences.paused` + one reinvite;
+  paused users skipped for both scan and digest; returning auto-unpauses). The
+  scheduler entrypoint `python -m app.scheduled` runs `scan_all_opted_in` then
+  `digest_all_opted_in` and exits (0/1); the digest still runs when the scan is
+  budget-skipped. Runs on the `jobops-scheduler` Railway cron service; verified live.
 
 ## Migrations
 Run in the Supabase SQL editor; all idempotent. Applied: 0001 (profiles +
@@ -111,30 +130,34 @@ preferences), 0002 (tailorings + usage_log), 0003 (tailorings.applied_at), 0004
 (jobs pool), 0005 (jobs extra fields: salary_is_predicted, contract_time/type,
 category_tag), 0006 (tailorings role/company), 0007 (matches table), 0008
 (matches.decision), 0009 (usage_log.model, nullable, no backfill), 0010
-(preferences.email_opt_in, bool, default false). 0008, 0009, and 0010 are applied
-in prod — the email_opt_in toggle is live.
+(preferences.email_opt_in, bool, default false), 0011 (alerts_log: sent-state,
+unique user_id+match_id, RLS select-own, service-role writes). 0008–0011 are applied
+in prod — the email_opt_in toggle and the digest/sent-state loop are live.
 
 ## Open
-- Next M5 piece: Resend/email (acceptance = a real digest email in a real inbox,
-  not spam). See "Next milestone" below.
+- M5 is complete. The only deferred M5 work is step 7 (Batch API for scheduled
+  scoring) — a cost optimization, not blocking. See LAUNCH CHECKLIST for env values
+  to reconcile before the July community launch, and the Backlog for carried items.
 
-Resolved this session: M5 step 2 (per-user monthly caps + inert budget ceiling)
-shipped; the Matches→Tailor flow fixed to paste-the-full-JD score+tailor; a
-frontend Prettier pre-commit hook added. See CHANGELOG (2026-06-24) for the
-per-commit log and the recorded decisions.
+Resolved this session: M5 step 6 shipped end to end — scan-all loop + shared scanner
+core, budget kill-switch wired, 15-day inactivity pause + one-time reinvite, and the
+run-and-exit scheduler entrypoint now live on the `jobops-scheduler` Railway cron
+service. See CHANGELOG (2026-06-25) for the per-commit log and the recorded decisions.
 
-## LAUNCH CHECKLIST (before July 1)
-Test-time env overrides on Railway that MUST be reverted before the community
-launch, or they silently disable a cost guardrail:
-- `PER_USER_MONTHLY_TAILOR_CAP` → back to **10** (the code default). Revert any
-  test-time bump.
+## LAUNCH CHECKLIST (before the July community launch)
+Still-open items to reconcile before opening to strangers:
+- **Revert the BACKEND web service's test-bumped `PER_USER_MONTHLY_TAILOR_CAP` to
+  10** (the code default). The `jobops-scheduler` cron service already has 10; the
+  web service is the one to fix.
 - `PER_USER_MONTHLY_SCORE_CAP` → back to **50** if it was bumped during testing.
-- `PER_USER_DAILY_LLM_CAP`: prod Railway is set to **50**, which overrides the new
-  code default of 100. Decide and set deliberately for launch (raise to 100 or
-  remove the env var so the code default wins) — don't let the stale value linger.
-- General rule: audit Railway env for any cap/budget var bumped for testing and
-  reset it to the code default. The budget ceiling and monthly caps are code
-  defaults (not prod env vars), so they need no action unless someone overrode them.
+- `PER_USER_DAILY_LLM_CAP`: if prod Railway still overrides it, set deliberately for
+  launch (raise to 100 or remove the env var so the code default wins).
+- General rule: audit Railway env on BOTH services for any cap/budget var bumped for
+  testing and reset to the code default. The budget ceiling and monthly caps are
+  code defaults (not prod env vars), so they need no action unless someone overrode.
+- **Cron DST note:** the scheduler cron `0 11 */2 * *` is UTC = 7am ET while EDT is
+  in effect. At the fall EDT→EST change it shifts to 6am ET; bump to `0 12 */2 * *`
+  if holding 7am matters.
 
 ## Backlog (pre-M5 cleanup) — CLEARED
 The prioritized pre-M5 cleanup is fully done. Per-commit detail and the recorded
@@ -170,7 +193,11 @@ investigation notes are below.
 - Admin cap-exemption allowlist (Option 3): exempt listed admin user_ids from the
   per-user caps. Deferred; in the interim, bump caps via Railway env vars for
   testing (revert before launch — see LAUNCH CHECKLIST).
-- Design revamp: pills-first, done all-at-once, post-M5 (see Deferred).
+- Design revamp: pills-first, done all-at-once, post-M5 (see Deferred). Includes the
+  digest email template and the Matches→Tailor button spacing.
+- Rewrite `test_usage.py::test_budget_ceiling_is_built_but_not_wired_to_block` — the
+  ceiling IS now wired (into the scanner), so the test name is stale. New assertion:
+  the ceiling gates the SCANNER but NOT ondemand / matcher / digest.
 - Usage indicator: show "X/Y tailors left this month" (and scores). Also upgrades
   the tailor cap-button from the reactive latch to a load-time disable.
 - Dead-column drop: drop `preferences.alert_frequency` in its own migration (nothing
@@ -185,8 +212,10 @@ investigation notes are below.
   DEFERRED decision: leave them as distinct artifacts (triage score vs. user-
   evaluated score) OR reconcile the match row to the full-JD score (which then
   interacts with the threshold filter).
-- Smaller tidy-ups: login sender address (hello@ → noreply@, or Cloudflare routing);
-  recently-scored title cleanup.
+- Reply-able digest sender: set `Reply-To` to a monitored address so a user can
+  reply to a digest — folds with the login sender address work (hello@ → noreply@,
+  or Cloudflare email routing).
+- Smaller tidy-ups: recently-scored title cleanup (cosmetic).
 - Parked (carried from earlier, not prioritized): resume view link (signed URL);
   PDF resume export (its own post-M5 milestone — see M6).
 
@@ -235,28 +264,24 @@ RESOLVED (investigation done — decisions to honor when the related work comes 
   env (`additional_dependencies`) instead. Also: frontend Prettier is enforced both
   locally (pre-commit) and in CI (`format:check`) — keep them on the same version.
 
-## Next milestone: M5 — scheduled scan + email digest
-Build order (guardrail-first — reset because a July community launch means a hard
-cost cap must exist before opening to strangers):
+## M5 — scheduled scan + email digest (COMPLETE)
+Build order (guardrail-first — cost controls before the digest, because a July
+community launch means a hard cost cap must exist before opening to strangers):
 1. Opt-in flag — ✅ DONE (`preferences.email_opt_in`, migration 0010).
-2. Cost controls — ✅ DONE. Per-user monthly caps + the inert global budget ceiling
-   (`is_over_monthly_budget`). Pause switch (`preferences.paused`) still to be wired
-   when the scanner lands. Per `docs/GUARDRAILS.md`.
-3. Email / Resend — ⬅ NEXT. Wire Resend in the backend (net-new; auth email is
-   handled by Supabase today, the backend has never sent mail). ACCEPTANCE: a real
-   digest email lands in a real inbox, not spam (DKIM/SPF already verified for the
-   domain from M2.6).
-4. Sent-state — track which matches were emailed so none is sent twice (net-new: an
-   `alerts_log` table and/or a sent marker on `matches`).
-5. Digest composition — the DIGEST.md agent. Manual-trigger FIRST (admin-gated,
-   like M3/M4) before any scheduler. Double-gated on `email_opt_in` AND
-   `score >= score_threshold`. Score-only, never auto-tailor; skip-if-no-signal.
-6. Scheduler — a background worker on Railway (net-new; no scheduler today),
-   including a 15-day inactivity pause (stop emailing users who go quiet).
-7. Batch API — move the scheduled, non-interactive scoring onto the Batch API
-   (50 percent off; net-new — all calls are synchronous today). Deferrable.
+2. Cost controls — ✅ DONE. Per-user monthly caps + the global budget ceiling.
+3. Email / Resend — ✅ DONE. `mailer.send_email` (httpx, PII-safe, sends from
+   `noreply@myjobops.app` as "JobOps"); admin `POST /admin/test-email`.
+4. Sent-state — ✅ DONE. `alerts_log` (migration 0011) + `unsent_matches_for_user`
+   (reuses the threshold gate) + idempotent `mark_matches_sent`.
+5. Digest composition — ✅ DONE. `send_user_digest` (score-only, double-gated on
+   opt-in + threshold + paused, mark-on-send-success); admin `POST /admin/send-digests`.
+6. Scheduler — ✅ DONE. Budget kill-switch wired; 15-day inactivity pause + one-time
+   reinvite; run-and-exit `python -m app.scheduled` on the `jobops-scheduler` Railway
+   cron service. Verified live.
+7. Batch API — ⬜ DEFERRED. Move the scheduled, non-interactive scoring onto the
+   Batch API (50 percent off). A cost optimization, not required for the loop.
 
-Design decisions already fixed:
+Design decisions (shipped):
 - Single "email me matches" opt-in. No daily/weekly cadence toggle: the pool is
   not fresh enough daily to justify one (shipped as the toggle in step 1).
 - Send the top-N unsent matches about every two days, and ONLY when there is
