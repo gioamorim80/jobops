@@ -1,4 +1,5 @@
-"""Manual, admin-gated triggers (no scheduler) — run for one user on demand.
+"""Manual, admin-gated triggers (no scheduler yet) — the scanner/digest building
+blocks, runnable on demand for one user or all opted-in users.
 
 POST /admin/fetch-jobs   (M3) fetches per-user from each enabled source, dedupes
                          into the shared `jobs` pool, returns a no-LLM prefilter
@@ -6,6 +7,9 @@ POST /admin/fetch-jobs   (M3) fetches per-user from each enabled source, dedupes
 POST /admin/score-matches (M4) prefilters the user's candidates from the pool and
                          LLM-scores that shortlist into the per-user `matches`
                          table (Haiku + prompt caching; logged as "match_score").
+POST /admin/scan-all     (M5 step 6) runs the per-user fetch+score for EVERY opted-in
+                         user (scanner.scan_all_opted_in). The manual stand-in for
+                         the scheduler; no budget gate / inactivity pause yet.
 
 SECURITY: triggering external API calls / LLM spend / pool writes must not be open
 to any authenticated user. The caller's verified-JWT user_id is checked against
@@ -20,21 +24,20 @@ from pydantic import BaseModel
 from app.applog import get_logger
 from app.auth import CurrentUserId
 from app.config import settings
-from app.dedupe import upsert_jobs
 from app.digest import send_user_digest
 from app.mailer import send_email
-from app.matcher import score_shortlist
 from app.prefilter import DEFAULT_CAP, prefilter
-from app.sources.adzuna import AdzunaSource
-from app.sources.base import FetchResult, JobSource, JobSourceError, SearchCriteria
+from app.scanner import (
+    fetch_into_pool,
+    load_parsed,
+    scan_all_opted_in,
+    score_from_pool,
+    target_roles_of,
+)
 from app.supabase_client import get_service_client
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 logger = get_logger("jobops.admin")
-
-# Source registry: enabling/disabling a source is a one-line change here, not a
-# change scattered through the codebase.
-SOURCES: list[JobSource] = [AdzunaSource()]
 
 
 class FetchRequest(BaseModel):
@@ -63,14 +66,6 @@ def is_admin(user_id: str) -> bool:
     return user_id in settings.admin_user_id_list
 
 
-def _load_parsed(client, user_id: str) -> dict:
-    rows = (
-        client.table("profiles").select("parsed").eq("user_id", user_id).limit(1).execute().data
-        or []
-    )
-    return (rows[0].get("parsed") if rows else None) or {}
-
-
 @router.post("/fetch-jobs")
 def fetch_jobs(caller_id: CurrentUserId, body: FetchRequest) -> dict:
     if not is_admin(caller_id):
@@ -79,74 +74,34 @@ def fetch_jobs(caller_id: CurrentUserId, body: FetchRequest) -> dict:
 
     target_user_id = (body.user_id or caller_id).strip()
     client = get_service_client()
-    parsed = _load_parsed(client, target_user_id)
-    target_roles = [r for r in (parsed.get("target_roles") or []) if r.strip()]
-    if not target_roles:
+    parsed = load_parsed(client, target_user_id)
+    if not target_roles_of(parsed):
         return {
             "status": "no_keywords",
             "message": "That user has no target roles set, so there is nothing to search for yet.",
         }
 
-    locations = [loc for loc in (parsed.get("locations") or []) if loc]
-    criteria = SearchCriteria(
-        keywords=target_roles,
-        location=locations[0] if locations else None,
-        remote_pref=parsed.get("remote_pref") or "",
-        max_days_old=body.max_days_old,
-        max_pages=body.max_pages,
-    )
+    logger.info("fetch-jobs: admin=%s target=%s", caller_id[:8], target_user_id[:8])
+    fetch = fetch_into_pool(client, parsed, body.max_days_old, body.max_pages)
+    shortlist = prefilter(parsed, fetch["all_jobs"], cap=DEFAULT_CAP)
     logger.info(
-        "fetch-jobs: admin=%s target=%s roles=%s location=%r remote_pref=%r",
-        caller_id[:8],
+        "fetch-jobs done: target=%s sources_run=%s failed=%s raw=%s stored=%s shortlist=%s",
         target_user_id[:8],
-        target_roles[:3],
-        criteria.location,
-        criteria.remote_pref,
-    )
-
-    all_jobs: list[dict] = []
-    sources_run: list[str] = []
-    sources_failed: list[dict] = []
-    raw_count = 0
-    parse_failures = 0
-
-    for source in SOURCES:
-        try:
-            result: FetchResult = source.fetch(criteria)
-        except JobSourceError as exc:
-            logger.error("source %s failed: %s", source.name, exc)
-            sources_failed.append({"source": source.name, "error": str(exc)})
-            continue
-        except Exception as exc:  # never let one source 500 the whole fetch
-            logger.exception("source %s crashed unexpectedly", source.name)
-            sources_failed.append({"source": source.name, "error": f"unexpected: {exc}"})
-            continue
-        sources_run.append(source.name)
-        raw_count += result.raw_count
-        parse_failures += result.parse_failures
-        all_jobs.extend(job.model_dump() for job in result.jobs)
-
-    stored = upsert_jobs(client, all_jobs)
-    shortlist = prefilter(parsed, all_jobs, cap=DEFAULT_CAP)
-    logger.info(
-        "fetch-jobs done: target=%s sources_run=%s failed=%s raw=%s parse_failures=%s stored=%s shortlist=%s",
-        target_user_id[:8],
-        sources_run,
-        len(sources_failed),
-        raw_count,
-        parse_failures,
-        stored,
+        fetch["sources_run"],
+        len(fetch["sources_failed"]),
+        fetch["raw_count"],
+        fetch["stored"],
         len(shortlist),
     )
 
     return {
         "status": "ok",
         "target_user": target_user_id[:8],
-        "sources_run": sources_run,
-        "sources_failed": sources_failed,
-        "fetched_raw": raw_count,
-        "parse_failures": parse_failures,
-        "unique_stored": stored,
+        "sources_run": fetch["sources_run"],
+        "sources_failed": fetch["sources_failed"],
+        "fetched_raw": fetch["raw_count"],
+        "parse_failures": fetch["parse_failures"],
+        "unique_stored": fetch["stored"],
         "shortlist_count": len(shortlist),
         "shortlist": [
             {
@@ -175,47 +130,33 @@ def score_matches(caller_id: CurrentUserId, body: ScoreMatchesRequest) -> dict:
 
     target_user_id = (body.user_id or caller_id).strip()
     client = get_service_client()
-    parsed = _load_parsed(client, target_user_id)
-    target_roles = [r for r in (parsed.get("target_roles") or []) if r.strip()]
-    if not target_roles:
+    parsed = load_parsed(client, target_user_id)
+    if not target_roles_of(parsed):
         return {
             "status": "no_keywords",
             "message": "That user has no target roles set, so there is nothing to score against yet.",
         }
 
-    # Candidate jobs from the shared pool (most recently fetched first), bounded.
-    candidates = (
-        client.table("jobs")
-        .select(
-            "id, source_url, title, company, location_display, location_area, "
-            "remote, description, category, posted_at"
-        )
-        .order("fetched_at", desc=True)
-        .limit(body.candidate_limit)
-        .execute()
-        .data
-        or []
-    )
-    if not candidates:
+    score = score_from_pool(client, target_user_id, parsed, body.candidate_limit)
+    if score["candidates"] == 0:
         return {
             "status": "no_jobs",
             "message": "The jobs pool is empty for now — run /admin/fetch-jobs first.",
         }
 
-    # Stage 1: cheap no-LLM prefilter → generous shortlist. Stage 2: LLM-score it.
-    shortlist = prefilter(parsed, candidates, cap=DEFAULT_CAP)
-    summary = score_shortlist(client, target_user_id, parsed, shortlist)
+    candidates = score["candidates"]
+    summary = {k: v for k, v in score.items() if k != "candidates"}
     logger.info(
         "score-matches done: admin=%s target=%s candidates=%s %s",
         caller_id[:8],
         target_user_id[:8],
-        len(candidates),
+        candidates,
         summary,
     )
     return {
         "status": "ok",
         "target_user": target_user_id[:8],
-        "candidates": len(candidates),
+        "candidates": candidates,
         **summary,
     }
 
@@ -279,3 +220,35 @@ def send_digests(caller_id: CurrentUserId, body: SendDigestsRequest) -> dict:
         "send-digests done: admin=%s targeted=%s sent=%s", caller_id[:8], len(targets), sent
     )
     return {"status": "ok", "targeted": len(targets), "sent": sent, "results": results}
+
+
+@router.post("/scan-all")
+def scan_all(caller_id: CurrentUserId) -> dict:
+    """M5 step 6 (commit 1): run the per-user fetch+score for EVERY opted-in user —
+    the manual trigger for what the scheduler will later run on a timer. NO scheduler,
+    NO budget gate, NO inactivity pause yet. ADMIN-GATED with the same fail-closed
+    ADMIN_USER_IDS allowlist. One user's failure is isolated and never aborts the run
+    (see scan_all_opted_in). The scanner's existing per-user cost controls (no-LLM
+    prefilter + the daily LLM cap in score_shortlist) still apply."""
+    if not is_admin(caller_id):
+        logger.warning("scan-all denied: caller=%s not in admin allowlist", caller_id[:8])
+        raise HTTPException(status_code=403, detail="Not authorized to trigger scanning.")
+
+    client = get_service_client()
+    results = scan_all_opted_in(client)
+    scanned = sum(1 for r in results if r.get("status") == "ok")
+    total_scored = sum(r.get("scored", 0) for r in results)
+    logger.info(
+        "scan-all done: admin=%s users=%s scanned=%s scored=%s",
+        caller_id[:8],
+        len(results),
+        scanned,
+        total_scored,
+    )
+    return {
+        "status": "ok",
+        "users": len(results),
+        "scanned": scanned,
+        "scored": total_scored,
+        "results": results,
+    }

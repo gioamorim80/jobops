@@ -112,6 +112,49 @@ def test_send_digests_admin_targeted_user(monkeypatch: pytest.MonkeyPatch) -> No
     assert seen == ["target-user"]  # only the targeted user, no fan-out
 
 
+def test_scan_all_requires_auth() -> None:
+    response = client.post("/admin/scan-all", json={})
+    assert response.status_code == 401
+
+
+def test_scan_all_rejects_non_admin(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Non-admin -> 403; the scan loop is never reached (it spends LLM).
+    monkeypatch.setattr(settings, "admin_user_ids", "admin-1")
+
+    def _boom(*a, **k):
+        raise AssertionError("scan_all_opted_in reached despite non-admin caller")
+
+    monkeypatch.setattr(admin_mod, "scan_all_opted_in", _boom)
+    app.dependency_overrides[get_current_user_id] = lambda: "not-an-admin"
+    try:
+        response = client.post("/admin/scan-all", json={})
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+    assert response.status_code == 403
+
+
+def test_scan_all_admin_runs_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Admin passes the gate; the endpoint aggregates the loop's per-user results.
+    monkeypatch.setattr(settings, "admin_user_ids", "admin-1")
+    monkeypatch.setattr(admin_mod, "get_service_client", lambda: object())
+    monkeypatch.setattr(
+        admin_mod,
+        "scan_all_opted_in",
+        lambda _client: [
+            {"user": "a", "status": "ok", "scored": 2},
+            {"user": "b", "status": "skipped_no_roles"},
+        ],
+    )
+    app.dependency_overrides[get_current_user_id] = lambda: "admin-1"
+    try:
+        response = client.post("/admin/scan-all", json={})
+    finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["users"] == 2 and body["scanned"] == 1 and body["scored"] == 2
+
+
 def test_is_admin_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "admin_user_ids", "uid-1, uid-2")
     assert is_admin("uid-1") is True
