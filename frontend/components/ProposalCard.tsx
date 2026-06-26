@@ -82,24 +82,30 @@ export function ProposalCard({
       {applied ? (
         <p className="proposal-saved">Saved to your profile.</p>
       ) : (
-        <div className="proposal-actions">
-          <button
-            type="button"
-            className="btn btn-sm"
-            onClick={confirm}
-            disabled={applying}
-          >
-            {applying ? "Saving…" : "Add to profile"}
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={onDismiss}
-            disabled={applying}
-          >
-            Not now
-          </button>
-        </div>
+        <>
+          <p className="hint" style={{ margin: "0 0 0.6rem" }}>
+            Want it shorter or different? Just reply below and I&apos;ll revise
+            it before you save.
+          </p>
+          <div className="proposal-actions">
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={confirm}
+              disabled={applying}
+            >
+              {applying ? "Saving…" : "Add to profile"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={onDismiss}
+              disabled={applying}
+            >
+              Not now
+            </button>
+          </div>
+        </>
       )}
     </div>
   );
