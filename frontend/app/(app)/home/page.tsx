@@ -48,10 +48,10 @@ export default async function HomePage() {
 
       <div className="launcher-grid">
         <Link href="/score" className="card launcher-card">
-          <div className="card-title">Score a new job</div>
+          <div className="card-title">Check a job for fit</div>
           <p className="muted">
-            Paste a link or the posting text for an honest fit score and
-            suggested resume edits.
+            Paste a link or the posting text to see how well a role fits your
+            experience, with suggested resume edits.
           </p>
         </Link>
         <Link href="/dashboard" className="card launcher-card">
@@ -76,7 +76,7 @@ export default async function HomePage() {
             <div className="card-title" style={{ margin: 0 }}>
               Recently scored
             </div>
-            <Link href="/dashboard" className="faint">
+            <Link href="/dashboard" className="btn btn-ghost btn-sm">
               See all
             </Link>
           </div>

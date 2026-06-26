@@ -8,7 +8,7 @@ import { usePathname } from "next/navigation";
 const NAV_LINKS: { href: string; label: string }[] = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/matches", label: "Matches" },
-  { href: "/score", label: "Score a job" },
+  { href: "/score", label: "Check a job for fit" },
   { href: "/coach", label: "Coach" },
   { href: "/settings", label: "Settings" },
 ];

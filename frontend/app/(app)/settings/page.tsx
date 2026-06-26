@@ -293,7 +293,7 @@ export default function SettingsPage() {
 
         <div className="field" style={{ marginBottom: 0 }}>
           <label className="label" htmlFor="threshold">
-            Score threshold — {threshold}
+            Minimum fit score — {threshold}
           </label>
           <input
             id="threshold"
@@ -306,8 +306,8 @@ export default function SettingsPage() {
             onChange={(e) => setThreshold(Number(e.target.value))}
           />
           <p className="hint">
-            Only surface matches scoring at or above this fit score (default
-            60).
+            We only show roles scoring at or above this. Higher means fewer,
+            stronger matches (default 60).
           </p>
         </div>
       </div>

@@ -70,7 +70,7 @@ export default async function DashboardPage() {
         </div>
         <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
           <Link href="/score" className="btn btn-sm">
-            Score a job
+            Check a job for fit
           </Link>
           <Link href="/settings" className="btn btn-secondary btn-sm">
             Edit profile
@@ -133,7 +133,8 @@ export default async function DashboardPage() {
         <div className="card-title">Scored jobs</div>
         {!tailorings || tailorings.length === 0 ? (
           <p className="faint" style={{ margin: 0 }}>
-            No scored jobs yet. <Link href="/score">Score your first</Link>.
+            No checked jobs yet.{" "}
+            <Link href="/score">Check your first job for fit</Link>.
           </p>
         ) : (
           <div className="scored-list">

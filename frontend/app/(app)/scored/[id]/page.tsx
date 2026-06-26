@@ -44,7 +44,7 @@ export default async function ScoredDetailPage({
 
       <div style={{ marginTop: "1.25rem" }}>
         <Link href="/score" className="btn btn-secondary btn-sm">
-          Score another job
+          Check another job
         </Link>
       </div>
     </div>

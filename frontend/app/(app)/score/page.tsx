@@ -294,7 +294,7 @@ export default function ScorePage() {
             className="btn btn-ghost btn-sm"
             onClick={reset}
           >
-            Score another
+            Check another
           </button>
         </div>
 
@@ -555,11 +555,12 @@ export default function ScorePage() {
   // input phase
   return (
     <div style={{ maxWidth: 640 }}>
-      <h1>Score a job</h1>
+      <h1>Check a job for fit</h1>
       <p className="muted">
-        Paste a job link or the posting text for an honest fit score, grounded
-        only in what&apos;s true on your profile. Tailoring your resume is a
-        separate step you choose, on the jobs you want to pursue.
+        Paste a job link or the posting text to see how well it fits your
+        experience — grounded only in what&apos;s true on your profile.
+        Tailoring your resume is a separate step you choose, on the jobs you
+        want to pursue.
       </p>
 
       <div className="card">
@@ -615,7 +616,7 @@ export default function ScorePage() {
       )}
 
       <button type="button" className="btn" onClick={() => run(false)}>
-        Score
+        Check fit
       </button>
     </div>
   );

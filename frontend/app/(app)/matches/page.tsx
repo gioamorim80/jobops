@@ -65,8 +65,8 @@ export default async function MatchesPage() {
         <div>
           <h1 style={{ marginBottom: "0.25rem" }}>Matches</h1>
           <p className="muted" style={{ margin: 0 }}>
-            Jobs we found and scored for you. This is separate from the jobs you
-            score yourself, which live on your Dashboard.
+            Roles we found and scored for you — separate from the jobs you check
+            yourself, which live on your Dashboard.
           </p>
         </div>
         <Link href="/dashboard" className="btn btn-secondary btn-sm">
@@ -76,17 +76,17 @@ export default async function MatchesPage() {
 
       {matches.length === 0 ? (
         <div className="card">
-          <p className="faint" style={{ margin: 0 }}>
-            No matches at or above your score threshold ({threshold}). Lower it
-            in <Link href="/settings">Settings</Link> to see more, or check back
-            once a new scan has run.
+          <p className="muted" style={{ margin: 0 }}>
+            No new matches yet that reach your minimum fit score ({threshold}).
+            You can lower it in <Link href="/settings">Settings</Link>, or check
+            back soon — we look for new roles every couple of days.
           </p>
         </div>
       ) : (
         <>
           <p className="muted" style={{ marginTop: 0, marginBottom: "1rem" }}>
-            Showing matches scoring {threshold} and above. Adjust your threshold
-            in <Link href="/settings">Settings</Link>.
+            Showing roles that scored {threshold} or higher — your minimum fit
+            score. Change it in <Link href="/settings">Settings</Link>.
           </p>
           {matches.map((m) => {
             const job = m.jobs;
