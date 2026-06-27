@@ -14,8 +14,15 @@ DEFERRED — a cost optimization, not required for the loop.
 Caps today: `PER_USER_DAILY_LLM_CAP` default 100 in config.py (runaway/abuse brake);
 `PER_USER_MONTHLY_SCORE_CAP` 50, `PER_USER_MONTHLY_TAILOR_CAP` 10 (calendar-month,
 separate caps); `MONTHLY_BUDGET_CEILING_USD` 15 (global — now WIRED as the scanner
-kill-switch). See LAUNCH CHECKLIST for env values still to reconcile before the July
-community launch.
+kill-switch). A `CAP_EXEMPT_USER_IDS` allowlist exempts trusted user_ids from the
+per-user caps (the budget ceiling still applies to everyone). See LAUNCH CHECKLIST for
+env values still to reconcile before the July community launch.
+
+Since M5 sealed, a post-launch polish sprint shipped and is deployed: the cap-exemption
+allowlist, a fit-band recalibration (labels only, 74/62/48), a design pass (tokens,
+decision chips, tag-cloud, UX/copy clarity), the post-onboarding routing fix (land on
+`/home`), and coach-on-score (add context → confirm → auto re-score on the score page).
+See CHANGELOG (2026-06-26).
 
 ## Stack and repo (quick orient)
 - Frontend: Next.js App Router + TypeScript on Vercel. Routes under
@@ -131,6 +138,37 @@ community launch.
   (exemption skips the cap BLOCK, not the logging), so their spend counts toward the
   global budget. `is_cap_exempt` lives in `usage.py` (not `admin.py`) to avoid the
   `admin → scanner → matcher → ondemand → admin` import cycle.
+- **Fit-band recalibration (labels only).** Cutoffs recalibrated to 74/62/48 (Strong
+  ≥74, Solid 62–73, Moderate 48–61, Likely skip <48) in BOTH `score_band` (backend) and
+  `fitBand` (frontend), kept identical. Triggered by a heavy user seeing scores ceiling
+  ~72–78: the all-time max fit was 78 yet "Strong fit" required ≥80, so it never showed.
+  Scores and the scorer rubric are UNCHANGED — labels only, not inflation. The deeper
+  finding (scoring is parsed-profile-only, so real experience read as a gap is the
+  no-fabrication rule working) points the first-order fix at profile completeness via the
+  Coach, not a looser scorer. Bands documented as an early-data calibration to revisit.
+- **Design pass (tokens + components + UX/copy).** Cooler/lighter background (#faf8f4),
+  card shadows → hairline borders, lavender pulled to a focus-only accent, a radius scale
+  (lg/md/chip). Decision chips restyled semantically (solid-green APPLY, ochre-outline
+  STRETCH, muted-ghost SKIP); the dashboard skills/domains pill-wall lightened to a
+  borderless tag cloud. UX/copy: "Score a job" → "Check a job for fit" (labels only;
+  routes/endpoints unchanged), primary actions promoted to clear buttons, plain-language
+  copy ("score threshold" → "minimum fit score") and friendlier empty states. Framed as
+  RESTORING the original intent (hairline borders, three-note palette) that had drifted
+  to AI-default, not a redesign.
+- **Post-onboarding routing fix.** The onboarding-completion redirect was hard-coded to
+  `/dashboard` (data-heavy), so first-time users felt lost; fixed to `/home` (the
+  launcher), matching the login-callback routing. Added warm empty-state nudges on
+  `/home` and the dashboard scored-jobs section.
+- **Coach on the score page (add context → confirm → re-score).** A "Something's
+  missing?" block on the score result page lets the user add true context the profile
+  missed, routed through the EXISTING enrich flow: single-message `/enrich/chat` → shared
+  `ProposalCard` (extracted from the coach page) → confirm → `/enrich/apply` updates
+  `profiles.parsed` → auto re-score this job via the existing force path, new fit shown
+  inline with a note routing to Tailor. A mini-chat refines the proposal before saving.
+  Integrity-preserving: reuses the enrich flow (no fork); profile writes only via
+  `/enrich/apply`; confirm gate intact; the job text is NEVER sent to `/enrich/chat`
+  (enrichment is profile-level true experience, not job-fitting); re-score fires only on
+  a confirmed apply. Frontend only; no backend changes.
 
 ## Migrations
 Run in the Supabase SQL editor; all idempotent. Applied: 0001 (profiles +
@@ -147,18 +185,19 @@ in prod — the email_opt_in toggle and the digest/sent-state loop are live.
   scoring) — a cost optimization, not blocking. See LAUNCH CHECKLIST for env values
   to reconcile before the July community launch, and the Backlog for carried items.
 
-Resolved this session: M5 step 6 shipped end to end — scan-all loop + shared scanner
-core, budget kill-switch wired, 15-day inactivity pause + one-time reinvite, and the
-run-and-exit scheduler entrypoint now live on the `jobops-scheduler` Railway cron
-service. See CHANGELOG (2026-06-25) for the per-commit log and the recorded decisions.
+Resolved this sprint (post-M5 polish): the cap-exemption allowlist, the fit-band
+recalibration (labels only, 74/62/48), the design pass (tokens, decision chips, tag
+cloud, UX/copy clarity), the post-onboarding routing fix, and coach-on-score (add
+context → confirm → auto re-score). All shipped and deployed. See CHANGELOG (2026-06-26)
+for the per-commit log and the recorded decisions; M5 step 6 is in the 2026-06-25 entry.
 
 ## LAUNCH CHECKLIST (before the July community launch)
 Still-open items to reconcile before opening to strangers:
-- **Revert the BACKEND web service's test-bumped `PER_USER_MONTHLY_TAILOR_CAP` to
-  10** (the code default). The `jobops-scheduler` cron service already has 10; the
-  web service is the one to fix. Pair this with **`CAP_EXEMPT_USER_IDS=<owner uuid>`
-  on the backend** so the owner keeps headroom while the community gets the real cap.
-  (Add the owner uuid to the scheduler service too if owner scans should be uncapped.)
+- ~~**Revert the BACKEND web service's test-bumped `PER_USER_MONTHLY_TAILOR_CAP` to
+  10**, paired with `CAP_EXEMPT_USER_IDS=<owner uuid>` on the backend~~ — DONE. The
+  tailor cap is back to the code default (10) for the community, and the owner uuid is
+  on the backend's `CAP_EXEMPT_USER_IDS` so the owner keeps headroom. (Add the owner
+  uuid to the scheduler service too if owner scans should be uncapped.)
 - `PER_USER_MONTHLY_SCORE_CAP` → back to **50** if it was bumped during testing.
 - `PER_USER_DAILY_LLM_CAP`: if prod Railway still overrides it, set deliberately for
   launch (raise to 100 or remove the env var so the code default wins).
@@ -204,17 +243,33 @@ Standing decisions (do not re-litigate):
 ## Backlog (current)
 The active list, re-curated this session. Standing decisions are above; deeper
 investigation notes are below.
-- Coach-wiring into the score page: let the user correct or add info on analysis
-  points inline, routed through the coach's no-fabrication guardrails. Beta-validate
-  before shipping.
-- Admin cap-exemption allowlist (Option 3): exempt listed admin user_ids from the
-  per-user caps. Deferred; in the interim, bump caps via Railway env vars for
-  testing (revert before launch — see LAUNCH CHECKLIST).
-- Design revamp: pills-first, done all-at-once, post-M5 (see Deferred). Includes the
-  digest email template and the Matches→Tailor button spacing.
+- ~~Coach-wiring into the score page~~ — DONE. Shipped as the "Something's missing?"
+  add-context block (add context → confirm `ProposalCard` → `/enrich/apply` → auto
+  re-score), routed through the coach's no-fabrication guardrails. See CHANGELOG
+  (2026-06-26).
+- ~~Admin cap-exemption allowlist~~ — DONE. Shipped as `CAP_EXEMPT_USER_IDS` (per-user
+  caps only; the budget ceiling still applies to everyone). See CHANGELOG (2026-06-26).
+- ~~Design revamp (pills-first, the AI-default look)~~ — DONE. Shipped as the design
+  pass (tokens, semantic decision chips, borderless tag cloud, UX/copy clarity). Still
+  open within this theme: the digest email template and the Matches→Tailor button
+  spacing.
 - ~~Rewrite `test_usage.py::test_budget_ceiling_is_built_but_not_wired_to_block`~~ —
   DONE. The test now asserts the ceiling is wired in the scanner AND the ondemand
   exempt path, but NOT the digest (LLM-free) or matcher (relies on the scanner gate).
+- Local dev CORS (Fix A): the local frontend points at the prod backend
+  (`NEXT_PUBLIC_BACKEND_URL` in `frontend/.env.local`), so local backend calls are
+  CORS-blocked; set it to `http://localhost:8000` (with the local backend running) when
+  local dev is wanted. Do NOT loosen prod CORS for this.
+- Coach context loss on navigation: an unconfirmed Coach conversation is lost when the
+  user navigates away and back (in-memory React state). Fix by lifting the state so it
+  survives in-app navigation WITHOUT persisting the raw transcript to the DB (honor the
+  privacy choice). Minor for the score-page mini-chat (a short interaction); more of a
+  wound in the full Coach.
+- Score result resets on navigation (minor — the scored job is saved and reachable via
+  `/scored/[id]`).
+- Re-score cap/error drops the user from the result view to the input form (known reused
+  `run()` behavior; small follow-up only if it bites real users).
+- Drag-and-drop resume upload (still deferred — the file picker works; this is a nicety).
 - Usage indicator: show "X/Y tailors left this month" (and scores). Also upgrades
   the tailor cap-button from the reactive latch to a load-time disable.
 - Dead-column drop: drop `preferences.alert_frequency` in its own migration (nothing

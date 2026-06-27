@@ -33,7 +33,8 @@ Goal: the instantly-useful single action.
 - Run Scorer (`docs/agents/SCORER.md`) then Tailor (`docs/agents/TAILOR.md`)
   against the user's stored profile.
 - UI shows: a **0–100 fit score with a qualitative band** (Strong / Solid /
-  Stretch / Likely skip) and decision (APPLY / STRETCH / SKIP); cleared
+  Moderate / Likely skip; cutoffs recalibrated to 74/62/48 from real score data,
+  labels only) and decision (APPLY / STRETCH / SKIP); cleared
   requirements; honest gaps; **"Suggested changes to your resume"** — each
   showing *where* it applies (role + section), as original → suggestion → why;
   match analysis. The user edits and explicitly approves; results save to
@@ -154,6 +155,21 @@ digest of their new matches, can click through to tailor on demand, a match is n
 re-sent, inactive users are paused with one reinvite, and exceeding a cap or the
 budget ceiling is handled gracefully. Verified live on the `jobops-scheduler` cron
 service: a scheduled run scanned, scored, and emailed a real digest, then exited clean.
+
+## Shipped since M5 (not milestones)
+Not roadmap milestones, but the status should reflect current reality — these landed
+after M5 sealed (see CHANGELOG 2026-06-26):
+- **Coach on the score page** — a "Something's missing?" block on the score result page
+  lets a user add true context the profile missed, routed through the existing enrich
+  flow (confirm-gated `ProposalCard` → `/enrich/apply`), then auto re-scores the job and
+  shows the new fit. Reuses the Coach's no-fabrication guardrails; the job text is never
+  sent to enrichment.
+- **Design pass** — restored the original design intent (hairline borders, a three-note
+  palette, semantic decision chips, a borderless tag cloud) and clearer UX/copy
+  ("Check a job for fit", "minimum fit score"). Labels/visuals only; no routes,
+  endpoints, or logic changed.
+- **Fit-band recalibration** — band cutoffs moved to 74/62/48 to match the real score
+  distribution. Labels only; scores and the scorer rubric are unchanged.
 
 ## Remaining
 The live app does what it set out to do. Two planned items remain (see README):

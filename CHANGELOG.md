@@ -1,5 +1,72 @@
 # CHANGELOG
 
+## 2026-06-26 — Cap-exemption allowlist, fit-band recalibration, a design pass, routing fix, and coach-on-score
+
+With M5 sealed, this sprint closed the post-launch rough edges: an owner cap-exemption
+that still respects the budget ceiling, fit bands recalibrated to the real score
+distribution, a design pass that restores the original intent, a post-onboarding routing
+fix, and the coach wired into the score page so a user can correct a gap and see the
+re-score immediately.
+
+**Cap-exemption allowlist**
+- `CAP_EXEMPT_USER_IDS` exempts trusted user_ids from ALL per-user caps (daily LLM,
+  monthly score, monthly tailor, matcher daily) while STILL enforcing the global
+  `MONTHLY_BUDGET_CEILING_USD`; usage is still logged; empty default = nobody exempt.
+  `is_cap_exempt` lives in `usage.py` (not `admin.py`) to avoid an import cycle. Set on
+  the backend service for the owner; the test-bumped tailor cap was reverted to 10 for
+  the community.
+- Decision: the exemption bypasses per-user caps but NOT the account-wide budget
+  ceiling — the runaway brake applies to everyone, including exempt users.
+- Rewrote the stale `test_budget_ceiling_is_built_but_not_wired_to_block` to assert the
+  real invariant (the ceiling gates the scanner + the ondemand exempt path, NOT the
+  digest/matcher).
+
+**Fit-band recalibration (labels only)**
+- A heavy user observed scores seemed to ceiling around 72–78; investigation found the
+  all-time max fit across all users was 78, yet "Strong fit" required ≥80 — so
+  "Strong fit" had never appeared. Recalibrated the cutoffs to 74/62/48 (Strong ≥74,
+  Solid 62–73, Moderate 48–61, Likely skip <48) in BOTH `score_band` (backend) and
+  `fitBand` (frontend), kept identical (boundary parity verified).
+- Decision: labels-only — the scores and the scorer rubric are UNCHANGED, not inflation.
+  The deeper finding: the scorer marking real experience as gaps is the no-fabrication
+  rule working correctly (scoring is parsed-profile-only); the first-order fix is profile
+  completeness (the Coach), not a more generous scorer. The bands are documented as an
+  early-data calibration to revisit.
+
+**Design pass — tokens, components, and UX/copy clarity**
+- Tokens: a cooler/lighter background (#faf8f4), card drop-shadows replaced by hairline
+  borders (restoring the original Chic Trancoso intent), lavender neutralized to a
+  focus-only accent, and a radius scale (lg/md/chip) replacing the single radius.
+- Components: decision chips restyled with semantic treatment (solid-green APPLY,
+  ochre-outline STRETCH, muted-ghost SKIP) instead of three pale fills; the dashboard
+  skills/domains pill-wall lightened to a borderless tag cloud.
+- UX/copy clarity: renamed the user-facing action "Score a job" → "Check a job for fit"
+  (labels only; routes/endpoints unchanged); promoted primary actions to clear buttons;
+  rewrote technical copy in plain language ("score threshold" → "minimum fit score";
+  friendlier empty states).
+- Decision: framed as RESTORING the original design intent (hairline borders, a
+  three-note palette) that had drifted to an AI-default look, not a redesign.
+
+**Post-onboarding routing fix**
+- The onboarding-completion redirect was hard-coded to `/dashboard` (the data-heavy
+  screen), so first-time users landed there and felt lost; fixed to `/home` (the
+  launcher), matching the login-callback routing. Added warm empty-state nudges on
+  `/home` and the dashboard scored-jobs section.
+
+**Coach on the score page (add context → confirm → re-score)**
+- On the score result page, a "Something's missing?" block lets the user add true
+  context the profile missed, routed through the EXISTING enrich flow: single-message
+  `/enrich/chat` → shared `ProposalCard` (extracted from the coach page) → confirm →
+  `/enrich/apply` updates `profiles.parsed` → auto re-score this job via the existing
+  force path, showing the new fit inline and routing to Tailor. A mini-chat lets the
+  user refine the proposal before saving (a hint on `ProposalCard` tells them they can
+  reply to adjust).
+- Decisions (integrity-preserving): reuses the enrich flow, never forks it; profile
+  writes only via `/enrich/apply` (the single writer); the confirm gate is intact
+  (nothing auto-applies); the job text is NEVER sent to `/enrich/chat` — enrichment is
+  profile-level true experience, not job-fitting, to avoid fabrication pressure;
+  re-score fires only on a confirmed apply.
+
 ## 2026-06-25 — M5 step 6: the automated scan-and-digest loop, now autonomous on a Railway cron service
 
 M5 is complete. The scanner and digest, previously manual admin endpoints, now run
