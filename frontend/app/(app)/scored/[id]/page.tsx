@@ -17,7 +17,9 @@ export default async function ScoredDetailPage({
   // anyone else's id simply yields nothing → 404.
   const { data: row } = await supabase
     .from("tailorings")
-    .select("id, score, tailored_bullets, analysis, approved")
+    .select(
+      "id, source_url, job_text, role, company, score, tailored_bullets, analysis, approved",
+    )
     .eq("id", id)
     .maybeSingle();
 
@@ -36,6 +38,11 @@ export default async function ScoredDetailPage({
       </div>
 
       <ScoredResult
+        id={row.id}
+        source_url={row.source_url ?? null}
+        job_text={row.job_text ?? null}
+        role={row.role ?? null}
+        company={row.company ?? null}
         score={score}
         bullets={bullets}
         analysis={row.analysis ?? ""}

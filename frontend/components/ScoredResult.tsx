@@ -1,3 +1,5 @@
+"use client";
+
 import type { ScoreResult, TailoredBullet } from "@/lib/types";
 import { decisionClass, fitBand } from "@/lib/ui";
 
@@ -12,14 +14,25 @@ function List({ items, empty }: { items: string[]; empty: string }) {
   );
 }
 
-// Read-only render of a saved tailoring (history detail). The editable variant
-// lives in the /score page.
+// Render of a saved tailoring (history detail). Now a client component so the
+// upcoming commits can add interactive blocks (the on-demand Tailor button and
+// the "Something's missing?" coach block) that hold local state. The job
+// reference (id, source_url, job_text, role, company) is plumbed in now so those
+// blocks have what they need — id + job_text to tailor on demand, source_url to
+// force a re-score — without another prop or route change. Those fields are
+// intentionally not rendered yet: this commit's output is identical to before.
+// The editable variant lives in the /score page.
 export function ScoredResult({
   score,
   bullets,
   analysis,
   approved,
 }: {
+  id: string;
+  source_url: string | null;
+  job_text: string | null;
+  role: string | null;
+  company: string | null;
   score: ScoreResult;
   bullets: TailoredBullet[];
   analysis: string;
