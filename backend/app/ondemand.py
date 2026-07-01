@@ -550,19 +550,44 @@ def tailor_resume(user_id: CurrentUserId, body: TailorRequest) -> dict:
                 ),
             }
 
-    tailor_raw, tailor_usage = run_json_agent(
-        TAILOR_SYSTEM_PROMPT_V1,
-        (
-            f"USER PROFILE (JSON):\n{json.dumps(parsed)}\n\n"
-            f"ATTRIBUTION NOTES:\n{json.dumps(parsed.get('attribution_notes', []))}\n\n"
-            f"RESUME TEXT:\n{raw_resume}\n\n"
-            f"JOB POSTING:\n{job_text}\n\n"
-            f"SCORER RESULT (JSON):\n{json.dumps(score)}"
-        ),
-        max_tokens=2500,
-        model=TAILOR_MODEL,
-        label="tailor",  # output is rephrased resume content — never snippet-logged
-    )
+    def _run_tailor():
+        return run_json_agent(
+            TAILOR_SYSTEM_PROMPT_V1,
+            (
+                f"USER PROFILE (JSON):\n{json.dumps(parsed)}\n\n"
+                f"ATTRIBUTION NOTES:\n{json.dumps(parsed.get('attribution_notes', []))}\n\n"
+                f"RESUME TEXT:\n{raw_resume}\n\n"
+                f"JOB POSTING:\n{job_text}\n\n"
+                f"SCORER RESULT (JSON):\n{json.dumps(score)}"
+            ),
+            max_tokens=2500,
+            model=TAILOR_MODEL,
+            label="tailor",  # output is rephrased resume content — never snippet-logged
+        )
+
+    # The tailor agent occasionally emits invalid JSON non-deterministically; the
+    # identical call usually succeeds on a second try. Retry ONCE on that specific
+    # failure only, so the launch-day tailor path isn't a coin flip. Any other error
+    # propagates untouched.
+    # FOLLOW-UP (post-launch): replace status+detail match with a typed exception
+    # from extract_json_object. That typed exception should also carry the failed
+    # attempt's token usage, so a retried tailor stops under-reporting one call
+    # against the per-user cap (currently under-counts; safe but imprecise).
+    try:
+        tailor_raw, tailor_usage = _run_tailor()
+    except HTTPException as exc:
+        if exc.status_code != 502 or exc.detail != "Agent returned malformed JSON.":
+            raise
+        logger.info("tailor: malformed JSON on attempt 1, retrying once")
+        try:
+            tailor_raw, tailor_usage = _run_tailor()
+        except HTTPException as retry_exc:
+            if (
+                retry_exc.status_code == 502
+                and retry_exc.detail == "Agent returned malformed JSON."
+            ):
+                logger.info("tailor: retry also failed, returning error")
+            raise
     log_call(client, user_id, "tailor", tailor_usage, model=TAILOR_MODEL)
     tailor = _normalize_tailor(tailor_raw)
 

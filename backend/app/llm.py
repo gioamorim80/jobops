@@ -7,6 +7,7 @@ per-job snippet is the only uncached part (cache reads bill at ~0.1x input).
 """
 
 import json
+import re
 from typing import Any
 
 import anthropic
@@ -24,9 +25,24 @@ def extract_json_object(text: str) -> dict:
     end = text.rfind("}")
     if start == -1 or end == -1 or end <= start:
         raise HTTPException(status_code=502, detail="Agent returned no JSON.")
+    candidate = text[start : end + 1]
     try:
-        return json.loads(text[start : end + 1])
+        return json.loads(candidate)
     except json.JSONDecodeError as exc:
+        # Diagnostic only: log a narrow window around the failure offset so a 502
+        # isn't a mystery. Mask alphanumerics (leak zero resume words) while keeping
+        # structural chars (quotes/braces/commas/colons/backslashes) visible, so the
+        # cause is legible: stray quote, missing comma, or trailing non-JSON prose.
+        window = candidate[max(0, exc.pos - 60) : exc.pos + 60]
+        masked = re.sub(r"[A-Za-z0-9]", "x", window)
+        logger.error(
+            "agent JSON parse fail: %s at pos %d (line %d col %d); masked window: %s",
+            exc.msg,
+            exc.pos,
+            exc.lineno,
+            exc.colno,
+            masked,
+        )
         raise HTTPException(status_code=502, detail="Agent returned malformed JSON.") from exc
 
 
